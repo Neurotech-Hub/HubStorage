@@ -558,13 +558,22 @@ class S3BackupSync:
                 "delete": True,
                 "exclude_patterns": [
                     "*.tmp",
+                    "*.temp",
                     "*/temp/*",
                     "*/cache/*",
-                    ".DS_Store",
-                    "*.localized",
-                    ".fseventsd/*",        # Mac file system events
-                    ".Spotlight-V100/*",   # Mac Spotlight index
-                    ".Trashes/*"
+                    "*/.cache/*",
+                    "*/tmp/*",
+                    ".DS_Store",  
+                    ".DS_Store?",           
+                    "._*",     
+                    ".Spotlight-V100/*",   
+                    ".Trashes/*",     
+                    ".fseventsd/*",            
+                    ".VolumeIcon.icns",           
+                    ".com.apple.timemachine.donotpresent",
+                    ".AppleDouble/*",             
+                    ".LSOverride",               
+                    "*.localized"
                 ],
                 "include_patterns": [],
                 "storage_class": None,
