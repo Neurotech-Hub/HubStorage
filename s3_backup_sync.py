@@ -7,7 +7,6 @@ for redundancy purposes. It uses AWS CLI for efficient incremental syncing.
 
 Prerequisites:
 - AWS CLI installed and configured (aws configure)
-- Python 3.6+
 - Sufficient local storage space
 
 Usage:
@@ -19,6 +18,7 @@ Usage:
 import argparse
 import json
 import logging
+import logging.handlers
 import os
 import subprocess
 import sys
@@ -28,12 +28,44 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 
+class PrependingFileHandler(logging.handlers.RotatingFileHandler):
+    """Custom file handler that prepends new log entries to the beginning of the file."""
+    
+    def __init__(self, filename, mode='a', maxBytes=0, backupCount=0, encoding=None, delay=False):
+        super().__init__(filename, mode, maxBytes, backupCount, encoding, delay)
+    
+    def emit(self, record):
+        """Emit a record, prepending it to the file."""
+        if self.stream is None:
+            self.stream = self._open()
+        
+        try:
+            msg = self.format(record)
+            
+            # Read existing content if file exists and has content
+            existing_content = ""
+            if os.path.exists(self.baseFilename):
+                with open(self.baseFilename, 'r', encoding='utf-8') as f:
+                    existing_content = f.read()
+            
+            # Write new message followed by existing content
+            with open(self.baseFilename, 'w', encoding='utf-8') as f:
+                f.write(msg + '\n')
+                if existing_content:
+                    f.write(existing_content)
+                    
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+
 class S3BackupSync:
     def __init__(self, config_file: Optional[str] = None):
         """Initialize the S3 backup sync tool."""
         self.config = self.load_config(config_file)
         self.setup_logging()
         self.aws_cmd = None  # Will be set by check_prerequisites()
+        self.run_errors = []  # Track errors during the run
         
     def load_config(self, config_file: Optional[str] = None) -> Dict:
         """Load configuration from file or use defaults."""
@@ -99,10 +131,9 @@ class S3BackupSync:
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         
-        # File handler with rotation
+        # File handler with custom prepending behavior
         if log_file:
-            from logging.handlers import RotatingFileHandler
-            file_handler = RotatingFileHandler(
+            file_handler = PrependingFileHandler(
                 log_file,
                 maxBytes=log_config.get("max_size_mb", 10) * 1024 * 1024,
                 backupCount=log_config.get("backup_count", 5)
@@ -116,6 +147,42 @@ class S3BackupSync:
         logging.getLogger().addHandler(console_handler)
         
         logging.getLogger().setLevel(log_level)
+    
+    def log_run_start(self):
+        """Log the start of a new backup run with clear separator."""
+        logging.info("=" * 80)
+        logging.info(f"🚀 S3 BACKUP RUN STARTED - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.run_errors = []  # Reset error tracking for this run
+    
+    def log_run_completion(self, success: bool, duration: float = None):
+        """Log the completion status of the backup run."""
+        logging.info("")
+        logging.info("=" * 80)
+        
+        if success and not self.run_errors:
+            status_emoji = "✅"
+            status_text = "COMPLETED SUCCESSFULLY"
+            status_detail = "All operations completed without errors."
+        elif success and self.run_errors:
+            status_emoji = "⚠️"
+            status_text = "COMPLETED WITH WARNINGS"
+            status_detail = f"Run completed but encountered {len(self.run_errors)} warning(s)."
+        else:
+            status_emoji = "❌"
+            status_text = "FAILED"
+            status_detail = f"Run failed with {len(self.run_errors)} error(s)."
+        
+        logging.info(f"{status_emoji} S3 BACKUP RUN {status_text} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        if duration:
+            logging.info(f"⏱️  Total Duration: {duration:.2f} seconds")
+        
+        logging.info(f"📊 Status: {status_detail}")
+        
+        if self.run_errors:
+            logging.info("❗ Issues encountered during this run:")
+            for i, error in enumerate(self.run_errors, 1):
+                logging.info(f"   {i}. {error}")
     
     def find_aws_executable(self) -> Optional[str]:
         """Find AWS CLI executable in various locations."""
@@ -164,7 +231,9 @@ class S3BackupSync:
             # Find AWS CLI executable
             aws_cmd = self.find_aws_executable()
             if not aws_cmd:
-                logging.error("AWS CLI not found. Please install AWS CLI first.")
+                error_msg = "AWS CLI not found. Please install AWS CLI first."
+                logging.error(error_msg)
+                self.run_errors.append(error_msg)
                 return False
             
             logging.debug(f"Using AWS CLI at: {aws_cmd}")
@@ -189,13 +258,19 @@ class S3BackupSync:
             return True
             
         except subprocess.CalledProcessError as e:
-            logging.error(f"AWS CLI error: {e.stderr}")
+            error_msg = f"AWS CLI error: {e.stderr}"
+            logging.error(error_msg)
+            self.run_errors.append(error_msg)
             return False
         except FileNotFoundError:
-            logging.error("AWS CLI not found. Please install AWS CLI first.")
+            error_msg = "AWS CLI not found. Please install AWS CLI first."
+            logging.error(error_msg)
+            self.run_errors.append(error_msg)
             return False
         except Exception as e:
-            logging.error(f"Error checking prerequisites: {e}")
+            error_msg = f"Error checking prerequisites: {e}"
+            logging.error(error_msg)
+            self.run_errors.append(error_msg)
             return False
     
     def get_bucket_size(self, bucket_name: str) -> Optional[int]:
@@ -232,10 +307,12 @@ class S3BackupSync:
                 available_bytes = shutil.disk_usage(local_path).free
             
             if available_bytes < required_bytes:
-                logging.error(
+                error_msg = (
                     f"Insufficient disk space. Required: {required_bytes / (1024**3):.2f} GB, "
                     f"Available: {available_bytes / (1024**3):.2f} GB"
                 )
+                logging.error(error_msg)
+                self.run_errors.append(error_msg)
                 return False
             
             logging.info(
@@ -288,7 +365,12 @@ class S3BackupSync:
     def sync_bucket(self, bucket_name: str, dry_run: bool = False) -> bool:
         """Sync a single S3 bucket to local storage."""
         local_base = self.config["local_base_path"]
-        local_path = os.path.join(local_base, bucket_name)
+        
+        # Create timestamped directory name with format: yymmdd-hh_{bucket_name}
+        now = datetime.now()
+        timestamp = now.strftime("%y%m%d-%H")
+        timestamped_bucket_name = f"{timestamp}_{bucket_name}"
+        local_path = os.path.join(local_base, timestamped_bucket_name)
         
         # Create local directory
         os.makedirs(local_path, exist_ok=True)
@@ -297,6 +379,8 @@ class S3BackupSync:
         bucket_size = self.get_bucket_size(bucket_name)
         if bucket_size is not None and bucket_size > 0:
             if not self.check_disk_space(bucket_size * 1.1, local_path):  # 10% buffer
+                error_msg = f"Disk space check failed for bucket {bucket_name}"
+                self.run_errors.append(error_msg)
                 return False
         
         # Build and execute sync command
@@ -340,11 +424,15 @@ class S3BackupSync:
                 )
                 return True
             else:
-                logging.error(f"Sync failed for {bucket_name}. Return code: {return_code}")
+                error_msg = f"Sync failed for {bucket_name}. Return code: {return_code}"
+                logging.error(error_msg)
+                self.run_errors.append(error_msg)
                 return False
                 
         except Exception as e:
-            logging.error(f"Error during sync of {bucket_name}: {e}")
+            error_msg = f"Error during sync of {bucket_name}: {e}"
+            logging.error(error_msg)
+            self.run_errors.append(error_msg)
             return False
     
     def sync_all_buckets(self, dry_run: bool = False) -> bool:
@@ -352,7 +440,9 @@ class S3BackupSync:
         buckets = self.config.get("s3_buckets", [])
         
         if not buckets:
-            logging.error("No S3 buckets configured for sync")
+            error_msg = "No S3 buckets configured for sync"
+            logging.error(error_msg)
+            self.run_errors.append(error_msg)
             return False
         
         success_count = 0
@@ -364,7 +454,9 @@ class S3BackupSync:
             bucket_name = bucket if isinstance(bucket, str) else bucket.get("name")
             
             if not bucket_name:
-                logging.error(f"Invalid bucket configuration: {bucket}")
+                error_msg = f"Invalid bucket configuration: {bucket}"
+                logging.error(error_msg)
+                self.run_errors.append(error_msg)
                 continue
             
             logging.info(f"Processing bucket {success_count + 1}/{total_buckets}: {bucket_name}")
@@ -372,16 +464,24 @@ class S3BackupSync:
             if self.sync_bucket(bucket_name, dry_run):
                 success_count += 1
             else:
-                logging.error(f"Failed to sync bucket: {bucket_name}")
+                error_msg = f"Failed to sync bucket: {bucket_name}"
+                logging.error(error_msg)
+                # Note: individual sync errors are already tracked in sync_bucket method
         
         logging.info(f"Sync summary: {success_count}/{total_buckets} buckets synced successfully")
         return success_count == total_buckets
     
     def run_with_retries(self, dry_run: bool = False) -> bool:
         """Run sync with retry logic."""
+        # Log run start
+        self.log_run_start()
+        run_start_time = time.time()
+        
         automation_config = self.config.get("automation", {})
         max_retries = automation_config.get("max_retries", 3)
         retry_delay = automation_config.get("retry_delay_minutes", 5) * 60
+        
+        final_success = False
         
         for attempt in range(max_retries + 1):
             try:
@@ -393,19 +493,28 @@ class S3BackupSync:
                 
                 if success:
                     logging.info("All buckets synced successfully")
-                    return True
+                    final_success = True
+                    break
                 else:
                     if attempt < max_retries:
                         logging.warning(f"Sync failed, will retry in {retry_delay/60} minutes")
                     else:
-                        logging.error("All retry attempts exhausted")
+                        error_msg = "All retry attempts exhausted"
+                        logging.error(error_msg)
+                        self.run_errors.append(error_msg)
                         
             except Exception as e:
-                logging.error(f"Unexpected error during sync: {e}")
+                error_msg = f"Unexpected error during sync: {e}"
+                logging.error(error_msg)
+                self.run_errors.append(error_msg)
                 if attempt == max_retries:
-                    return False
+                    break
         
-        return False
+        # Log run completion
+        run_duration = time.time() - run_start_time
+        self.log_run_completion(final_success, run_duration)
+        
+        return final_success
     
     def run_continuous(self, dry_run: bool = False):
         """Run sync continuously based on automation settings."""
@@ -417,17 +526,16 @@ class S3BackupSync:
         
         while True:
             try:
-                logging.info("=" * 50)
-                logging.info(f"Starting scheduled sync at {datetime.now()}")
+                logging.info("⏰ Starting scheduled sync...")
                 
                 success = self.run_with_retries(dry_run)
                 
                 if success:
-                    logging.info("Scheduled sync completed successfully")
+                    logging.info("📅 Scheduled sync session completed successfully")
                 else:
-                    logging.error("Scheduled sync failed")
+                    logging.error("📅 Scheduled sync session failed")
                 
-                logging.info(f"Next sync scheduled in {interval_hours} hours")
+                logging.info(f"💤 Next sync scheduled in {interval_hours} hours")
                 time.sleep(interval_seconds)
                 
             except KeyboardInterrupt:
@@ -844,7 +952,16 @@ Examples:
         try:
             sync_tool = S3BackupSync(temp_config_file)
             if sync_tool.check_prerequisites():
+                # Log run start for single bucket sync
+                sync_tool.log_run_start()
+                run_start_time = time.time()
+                
                 success = sync_tool.sync_bucket(args.bucket, args.dry_run)
+                
+                # Log run completion for single bucket sync
+                run_duration = time.time() - run_start_time
+                sync_tool.log_run_completion(success, run_duration)
+                
                 sys.exit(0 if success else 1)
         finally:
             if os.path.exists(temp_config_file):
