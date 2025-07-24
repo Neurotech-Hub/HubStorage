@@ -1,4 +1,4 @@
-# S3 to Local Drive Backup Sync Tool
+# HubStorage (S3 to Local Drive Sync)
 
 A robust Python script for syncing AWS S3 buckets to local storage for redundancy. This tool uses AWS CLI's efficient `sync` command under the hood to provide incremental backups with comprehensive logging and automation features.
 
