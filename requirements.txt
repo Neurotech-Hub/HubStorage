@@ -1,0 +1,29 @@
+# AWS CLI is required but installed separately
+# These are Python dependencies for the script
+
+# Built-in modules used (no external dependencies required):
+# - argparse
+# - json  
+# - logging
+# - os
+# - subprocess
+# - sys
+# - time
+# - datetime
+# - pathlib
+# - typing
+
+# Note: This script uses only Python standard library modules
+# The main requirement is having AWS CLI installed and configured
+
+# Optional: If you want to extend the script with email notifications
+# smtplib (built-in)
+# email (built-in)
+
+# Optional: If you want to add webhook notifications  
+# requests>=2.25.0
+
+# For development/testing:
+# pytest>=6.0.0
+# black>=21.0.0
+# flake8>=3.8.0 
