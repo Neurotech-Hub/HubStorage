@@ -73,14 +73,14 @@ aws s3 ls
 ### 1. Generate Configuration File
 
 ```bash
-python s3_backup_sync.py --create-config
+python run.py --create-config
 ```
 
-This creates `s3_backup_config.json` with sample settings.
+This creates `config.json` with sample settings.
 
 ### 2. Edit Configuration
 
-Open `s3_backup_config.json` and update:
+Open `config.json` and update:
 
 ```json
 {
@@ -96,13 +96,13 @@ Open `s3_backup_config.json` and update:
 ### 3. Test with Dry Run
 
 ```bash
-python s3_backup_sync.py --config s3_backup_config.json --dry-run
+python run.py --config config.json --dry-run
 ```
 
 ### 4. Run Actual Sync
 
 ```bash
-python s3_backup_sync.py --config s3_backup_config.json
+python run.py --config config.json
 ```
 
 ## 📖 Usage Examples
@@ -111,29 +111,29 @@ python s3_backup_sync.py --config s3_backup_config.json
 
 ```bash
 # Sync with configuration file
-python s3_backup_sync.py --config my_config.json
+python run.py --config my_config.json
 
 # Quick single bucket sync
-python s3_backup_sync.py --bucket my-bucket --local-path D:/backup/my-bucket
+python run.py --bucket my-bucket --local-path D:/backup/my-bucket
 
 # Dry run to preview changes
-python s3_backup_sync.py --config my_config.json --dry-run
+python run.py --config my_config.json --dry-run
 
 # Use specific AWS profile
-python s3_backup_sync.py --config my_config.json --aws-profile production
+python run.py --config my_config.json --aws-profile production
 ```
 
 ### Manual Automation
 
 ```bash
 # Continuous mode (runs every 6 hours by default)
-python s3_backup_sync.py --config my_config.json --continuous
+python run.py --config my_config.json --continuous
 
 # One-time sync with retries
-python s3_backup_sync.py --config my_config.json
+python run.py --config my_config.json
 
 # Generate automation helper scripts
-python s3_backup_sync.py --setup-automation
+python run.py --setup-automation
 ```
 
 ## 🔄 **Automated Scheduling Setup**
@@ -144,7 +144,7 @@ The script includes a built-in continuous mode that runs indefinitely:
 
 ```bash
 # Run continuously (every 6 hours by default)
-python s3_backup_sync.py --config s3_backup_config.json --continuous
+python run.py --config config.json --continuous
 
 # Customize interval in config file:
 # "automation": { "interval_hours": 4 }
@@ -170,13 +170,13 @@ For production use, set up system-level scheduling that survives reboots.
 2. **Add Sync Schedule**
    ```bash
    # Every 6 hours
-   0 */6 * * * cd /path/to/your/script && source .venv/bin/activate && python s3_backup_sync.py --config s3_backup_config.json >> /var/log/s3_backup.log 2>&1
+   0 */6 * * * cd /path/to/your/script && source .venv/bin/activate && python run.py --config config.json >> /var/log/status.log 2>&1
 
    # Daily at 2 AM
-   0 2 * * * cd /path/to/your/script && source .venv/bin/activate && python s3_backup_sync.py --config s3_backup_config.json >> /var/log/s3_backup.log 2>&1
+   0 2 * * * cd /path/to/your/script && source .venv/bin/activate && python run.py --config config.json >> /var/log/status.log 2>&1
 
    # Every 4 hours during business hours (9 AM - 5 PM)
-   0 9-17/4 * * * cd /path/to/your/script && source .venv/bin/activate && python s3_backup_sync.py --config s3_backup_config.json
+   0 9-17/4 * * * cd /path/to/your/script && source .venv/bin/activate && python run.py --config config.json
    ```
 
 3. **Verify Cron Setup**
@@ -209,7 +209,7 @@ Create a LaunchAgent for better macOS integration:
        <array>
            <string>/bin/bash</string>
            <string>-c</string>
-           <string>cd /path/to/your/script && source .venv/bin/activate && python s3_backup_sync.py --config s3_backup_config.json</string>
+           <string>cd /path/to/your/script && source .venv/bin/activate && python run.py --config config.json</string>
        </array>
        <key>StartInterval</key>
        <integer>21600</integer> <!-- 6 hours in seconds -->
@@ -261,7 +261,7 @@ Create a LaunchAgent for better macOS integration:
    ```bash
    cd /path/to/your/script
    source .venv/bin/activate
-   python s3_backup_sync.py --config s3_backup_config.json
+   python run.py --config config.json
    ```
 5. Save as `S3BackupSync.app`
 6. Add to **System Preferences** → **Users & Groups** → **Login Items**
@@ -277,7 +277,7 @@ Create a LaunchAgent for better macOS integration:
 crontab -e
 
 # Add entries (same as macOS)
-0 */6 * * * cd /path/to/script && source .venv/bin/activate && python s3_backup_sync.py --config s3_backup_config.json
+0 */6 * * * cd /path/to/script && source .venv/bin/activate && python run.py --config config.json
 
 # For system-wide (requires sudo)
 sudo crontab -e
@@ -300,7 +300,7 @@ sudo crontab -e
    Type=oneshot
    User=yourusername
    WorkingDirectory=/path/to/your/script
-   ExecStart=/path/to/your/script/.venv/bin/python s3_backup_sync.py --config s3_backup_config.json
+   ExecStart=/path/to/your/script/.venv/bin/python run.py --config config.json
    StandardOutput=journal
    StandardError=journal
 
@@ -368,7 +368,7 @@ sudo crontab -e
    # Linux: journalctl -u s3backup.service
    
    # Check script logs
-   tail -f logs/s3_backup.log
+       tail -f logs/status.log
    ```
 
 ### **Testing Your Setup**
@@ -377,7 +377,7 @@ sudo crontab -e
 # Test the exact command your scheduler will run
 cd /your/script/directory
 source .venv/bin/activate  # if using venv
-python s3_backup_sync.py --config s3_backup_config.json --dry-run
+python run.py --config config.json --dry-run
 
 # Check scheduling
 # Windows: Task Scheduler → Right-click task → Run
@@ -410,12 +410,12 @@ python s3_backup_sync.py --config s3_backup_config.json --dry-run
     "storage_class": null,
     "sse": false
   },
-  "logging": {
-    "level": "INFO",
-    "file": "logs/s3_backup.log",
-    "max_size_mb": 10,
-    "backup_count": 5
-  },
+     "logging": {
+     "level": "INFO",
+     "file": "logs/status.log",
+     "max_size_mb": 10,
+     "backup_count": 5
+   },
   "automation": {
     "enabled": true,
     "interval_hours": 6,
@@ -438,7 +438,7 @@ python s3_backup_sync.py --config s3_backup_config.json --dry-run
 | | `storage_class` | S3 storage class filter | `null` |
 | | `sse` | Enable server-side encryption | `false` |
 | **Logging** | `level` | Log level (DEBUG/INFO/WARNING/ERROR) | `"INFO"` |
-| | `file` | Log file path | `"s3_backup.log"` |
+| | `file` | Log file path | `"status.log"` |
 | | `max_size_mb` | Max log file size before rotation | `10` |
 | | `backup_count` | Number of log files to keep | `5` |
 | **Automation** | `interval_hours` | Hours between syncs in continuous mode | `6` |
@@ -458,8 +458,8 @@ local_base_path/
 ├── bucket-2/
 │   └── data/
 └── logs/
-    ├── s3_backup.log
-    └── s3_backup.log.1
+    ├── status.log
+    └── status.log.1
 ```
 
 ## 🔍 Monitoring and Logs

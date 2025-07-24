@@ -10,9 +10,9 @@ Prerequisites:
 - Sufficient local storage space
 
 Usage:
-    python s3_backup_sync.py --config config.json
-    python s3_backup_sync.py --bucket my-bucket --local-path /backup/path
-    python s3_backup_sync.py --dry-run  # Test without actual sync
+    python run.py --config config.json
+    python run.py --bucket my-bucket --local-path /backup/path
+    python run.py --dry-run  # Test without actual sync
 """
 
 import argparse
@@ -85,7 +85,7 @@ class S3BackupSync:
             },
             "logging": {
                 "level": "INFO",
-                "file": "s3_backup.log",
+                "file": "status.log",
                 "max_size_mb": 10,
                 "backup_count": 5
             },
@@ -119,8 +119,8 @@ class S3BackupSync:
         log_config = self.config.get("logging", {})
         log_level = getattr(logging, log_config.get("level", "INFO"))
         
-        # Create logs directory if it doesn't exist
-        log_file = log_config.get("file", "s3_backup.log")
+                # Create logs directory if it doesn't exist
+        log_file = log_config.get("file", "status.log")
         log_dir = os.path.dirname(log_file)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
@@ -547,7 +547,7 @@ class S3BackupSync:
                 logging.error(f"Error in continuous mode: {e}")
                 time.sleep(60)  # Wait 1 minute before retrying
     
-    def create_sample_config(self, output_file: str = "s3_backup_config.json"):
+    def create_sample_config(self, output_file: str = "config.json"):
         """Create a sample configuration file."""
         sample_config = {
             "s3_buckets": [
@@ -583,7 +583,7 @@ class S3BackupSync:
             },
             "logging": {
                 "level": "INFO",
-                "file": "logs/s3_backup.log",
+                                 "file": "logs/status.log",
                 "max_size_mb": 10,
                 "backup_count": 5
             },
@@ -605,7 +605,7 @@ class S3BackupSync:
         """Generate platform-specific automation setup scripts and instructions."""
         current_dir = os.path.abspath(".")
         python_exe = sys.executable
-        config_file = "s3_backup_config.json"
+        config_file = "config.json"
         
         print("🔄 S3 Backup Automation Setup Helper")
         print("=" * 50)
@@ -628,7 +628,7 @@ class S3BackupSync:
 $TaskName = "S3BackupSync"
 $ScriptPath = "{script_dir}"
 $PythonExe = "{python_exe}"
-$Arguments = "s3_backup_sync.py --config {config_file}"
+        $Arguments = "run.py --config {config_file}"
 
 Write-Host "Setting up Windows Task Scheduler for S3 Backup Sync..."
 Write-Host "Script Directory: $ScriptPath"
@@ -705,7 +705,7 @@ Read-Host "Press Enter to continue..."
     <key>ProgramArguments</key>
     <array>
         <string>{python_exe}</string>
-        <string>{script_dir}/s3_backup_sync.py</string>
+                        <string>{script_dir}/run.py</string>
         <string>--config</string>
         <string>{script_dir}/{config_file}</string>
     </array>
@@ -776,10 +776,10 @@ echo "  rm ~/Library/LaunchAgents/com.s3backup.sync.plist"
         # Cron example
         cron_example = f'''# Add these lines to your crontab (crontab -e)
 # S3 Backup Sync - Every 6 hours
-0 */6 * * * cd {script_dir} && {python_exe} s3_backup_sync.py --config {config_file} >> /tmp/s3backup_cron.log 2>&1
+0 */6 * * * cd {script_dir} && {python_exe} run.py --config {config_file} >> /tmp/s3backup_cron.log 2>&1
 
 # Alternative: Daily at 2 AM
-# 0 2 * * * cd {script_dir} && {python_exe} s3_backup_sync.py --config {config_file}
+# 0 2 * * * cd {script_dir} && {python_exe} run.py --config {config_file}
 '''
         
         with open("crontab_example.txt", 'w') as f:
@@ -806,7 +806,7 @@ After=network.target
 Type=oneshot
 User={os.getenv('USER', 'ubuntu')}
 WorkingDirectory={script_dir}
-ExecStart={python_exe} {script_dir}/s3_backup_sync.py --config {script_dir}/{config_file}
+ExecStart={python_exe} {script_dir}/run.py --config {script_dir}/{config_file}
 StandardOutput=journal
 StandardError=journal
 
@@ -872,10 +872,10 @@ echo "  sudo systemctl list-timers | grep s3backup"
         # Cron example
         cron_example = f'''# Add these lines to your crontab (crontab -e)
 # S3 Backup Sync - Every 6 hours
-0 */6 * * * cd {script_dir} && {python_exe} s3_backup_sync.py --config {config_file} >> /var/log/s3backup_cron.log 2>&1
+0 */6 * * * cd {script_dir} && {python_exe} run.py --config {config_file} >> /var/log/s3backup_cron.log 2>&1
 
 # Alternative: Daily at 2 AM  
-# 0 2 * * * cd {script_dir} && {python_exe} s3_backup_sync.py --config {config_file}
+# 0 2 * * * cd {script_dir} && {python_exe} run.py --config {config_file}
 '''
         
         with open("crontab_example.txt", 'w') as f:
@@ -899,19 +899,19 @@ def main():
         epilog="""
 Examples:
   # Run with config file
-  python s3_backup_sync.py --config my_config.json
+  python run.py --config my_config.json
   
   # Quick sync with command line options
-  python s3_backup_sync.py --bucket my-bucket --local-path /backup/s3
+  python run.py --bucket my-bucket --local-path /backup/s3
   
   # Dry run to see what would be synced
-  python s3_backup_sync.py --config my_config.json --dry-run
+  python run.py --config my_config.json --dry-run
   
   # Continuous mode (runs every 6 hours)
-  python s3_backup_sync.py --config my_config.json --continuous
+  python run.py --config my_config.json --continuous
   
   # Create sample configuration
-  python s3_backup_sync.py --create-config
+  python run.py --create-config
         """
     )
     
