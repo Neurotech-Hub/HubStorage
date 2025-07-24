@@ -372,16 +372,18 @@ class S3BackupSync:
         timestamped_bucket_name = f"{timestamp}_{bucket_name}"
         local_path = os.path.join(local_base, timestamped_bucket_name)
         
-        # Create local directory
-        os.makedirs(local_path, exist_ok=True)
+        # Only create local directory if NOT doing a dry run
+        if not dry_run:
+            os.makedirs(local_path, exist_ok=True)
         
-        # Check bucket size and disk space
-        bucket_size = self.get_bucket_size(bucket_name)
-        if bucket_size is not None and bucket_size > 0:
-            if not self.check_disk_space(bucket_size * 1.1, local_path):  # 10% buffer
-                error_msg = f"Disk space check failed for bucket {bucket_name}"
-                self.run_errors.append(error_msg)
-                return False
+        # Check bucket size and disk space (only if not dry run)
+        if not dry_run:
+            bucket_size = self.get_bucket_size(bucket_name)
+            if bucket_size is not None and bucket_size > 0:
+                if not self.check_disk_space(bucket_size * 1.1, local_path):  # 10% buffer
+                    error_msg = f"Disk space check failed for bucket {bucket_name}"
+                    self.run_errors.append(error_msg)
+                    return False
         
         # Build and execute sync command
         cmd = self.build_sync_command(bucket_name, local_path, dry_run)
