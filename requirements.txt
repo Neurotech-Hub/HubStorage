@@ -1,5 +1,7 @@
-# AWS CLI is required but installed separately
 # These are Python dependencies for the script
+
+# AWS CLI
+awscli
 
 # Built-in modules used (no external dependencies required):
 # - argparse
