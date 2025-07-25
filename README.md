@@ -213,6 +213,15 @@ Create a LaunchAgent for better macOS integration:
        </array>
        <key>StartInterval</key>
        <integer>21600</integer> <!-- 6 hours in seconds -->
+       <!-- Use StartCalendarInterval for specific time (e.g., 2 AM daily)
+       <key>StartCalendarInterval</key>
+       <dict>
+           <key>Hour</key>
+           <integer>2</integer>
+           <key>Minute</key>
+           <integer>0</integer>
+       </dict>
+       -->
        <key>RunAtLoad</key>
        <true/>
        <key>StandardOutPath</key>
