@@ -219,3 +219,6 @@ __marimo__/
 
 # Config
 *.json
+
+# macOS
+.DS_Store

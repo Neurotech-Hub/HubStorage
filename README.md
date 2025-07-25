@@ -13,6 +13,7 @@ A robust Python script for syncing AWS S3 buckets to local storage for redundanc
 - **Dry Run Mode**: Preview what would be synced without actual transfer
 - **Flexible Configuration**: JSON-based config with command-line overrides
 - **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Dynamic Configuration**: Auto-generates config files with user-specific paths
 
 ## 📋 Prerequisites
 
@@ -76,7 +77,7 @@ aws s3 ls
 python run.py --create-config
 ```
 
-This creates `config.json` with sample settings.
+This creates `config.json` with sample settings using your user-specific paths.
 
 ### 2. Edit Configuration
 
@@ -123,17 +124,26 @@ python run.py --config my_config.json --dry-run
 python run.py --config my_config.json --aws-profile production
 ```
 
-### Manual Automation
+### Configuration and Automation
 
 ```bash
+# Create sample configuration with user-specific paths
+python run.py --create-config
+
+# Generate LaunchDaemon plist for macOS automation
+python run.py --generate-daemon
+
+# Manage LaunchDaemon (install, uninstall, status, restart)
+python run.py --manage-daemon install
+python run.py --manage-daemon status
+python run.py --manage-daemon restart
+python run.py --manage-daemon uninstall
+
+# Generate automation helper scripts for all platforms
+python run.py --setup-automation
+
 # Continuous mode (runs every 6 hours by default)
 python run.py --config my_config.json --continuous
-
-# One-time sync with retries
-python run.py --config my_config.json
-
-# Generate automation helper scripts
-python run.py --setup-automation
 ```
 
 ## 🔄 **Automated Scheduling Setup**
@@ -157,10 +167,84 @@ python run.py --config config.json --continuous
 
 For production use, set up system-level scheduling that survives reboots.
 
-
 ## 🍎 **macOS Automation Setup**
 
-### **Method A: Cron (Traditional)**
+### **Method A: LaunchDaemon (Recommended)**
+
+#### **Easy Installation with Python Management**
+
+1. **Install LaunchDaemon (One Command)**
+   ```bash
+   python run.py --manage-daemon install
+   ```
+   This automatically:
+   - Generates the daemon configuration with your specific paths
+   - Installs it to the correct location
+   - Starts the daemon
+   - Shows status and log information
+
+2. **Check Status**
+   ```bash
+   python run.py --manage-daemon status
+   ```
+   Shows:
+   - Whether the daemon is running
+   - Current interval settings
+   - Recent log entries
+   - Configuration file location
+
+3. **Manage the Daemon**
+   ```bash
+   # Restart the daemon
+   python run.py --manage-daemon restart
+   
+   # Uninstall completely
+   python run.py --manage-daemon uninstall
+   
+   # Check status
+   python run.py --manage-daemon status
+   ```
+
+#### **Manual Installation (Alternative)**
+
+1. **Generate LaunchDaemon Configuration**
+   ```bash
+   python run.py --generate-daemon
+   ```
+   This creates `com.s3backup.sync.daemon.plist` with your specific paths and username.
+
+2. **Install LaunchDaemon**
+   ```bash
+   # Copy to LaunchAgents directory
+   cp com.s3backup.sync.daemon.plist ~/Library/LaunchAgents/
+   
+   # Load the daemon
+   launchctl load ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+   ```
+
+3. **Verify Installation**
+   ```bash
+   # Check if daemon is loaded
+   launchctl list | grep s3backup
+   
+   # View logs
+   tail -f logs/s3backup_daemon.log
+   ```
+
+4. **Manage LaunchDaemon**
+   ```bash
+   # Start manually
+   launchctl start com.s3backup.sync.daemon
+   
+   # Stop
+   launchctl stop com.s3backup.sync.daemon
+   
+   # Unload and remove
+   launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+   rm ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+   ```
+
+### **Method B: Cron (Traditional)**
 
 1. **Edit Crontab**
    ```bash
@@ -186,94 +270,6 @@ For production use, set up system-level scheduling that survives reboots.
    
    # Check cron service status
    sudo launchctl list | grep cron
-   ```
-
-### **Method B: LaunchDaemon (Recommended for macOS)**
-
-Create a LaunchDaemon for system-wide operation that runs even when no user is logged in:
-
-1. **Generate Automated Setup Files**
-   ```bash
-   python run.py --setup-automation
-   ```
-   This creates:
-   - `com.s3backup.sync.daemon.plist` - LaunchDaemon configuration
-   - `setup_macos_daemon.sh` - Installation script
-
-2. **LaunchDaemon Configuration (Generated)**
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-   <plist version="1.0">
-   <dict>
-       <key>Label</key>
-       <string>com.s3backup.sync.daemon</string>
-       <key>ProgramArguments</key>
-       <array>
-           <string>/usr/bin/python3</string>
-           <string>/path/to/your/script/run.py</string>
-           <string>--config</string>
-           <string>/path/to/your/script/config.json</string>
-       </array>
-       <key>StartInterval</key>
-       <integer>21600</integer>
-       <!-- Use StartCalendarInterval for specific time (e.g., 2 AM daily)
-       <key>StartCalendarInterval</key>
-       <dict>
-           <key>Hour</key>
-           <integer>2</integer>
-           <key>Minute</key>
-           <integer>0</integer>
-       </dict>
-       -->
-       <key>RunAtLoad</key>
-       <true/>
-       <key>WorkingDirectory</key>
-       <string>/path/to/your/script</string>
-       <key>StandardOutPath</key>
-       <string>/var/log/s3backup_daemon.log</string>
-       <key>StandardErrorPath</key>
-       <string>/var/log/s3backup_daemon.error.log</string>
-       <key>UserName</key>
-       <string>root</string>
-       <key>GroupName</key>
-       <string>wheel</string>
-   </dict>
-   </plist>
-   ```
-
-3. **Install LaunchDaemon**
-   ```bash
-   sudo ./setup_macos_daemon.sh
-   ```
-
-4. **Manage LaunchDaemon**
-   ```bash
-   # Start
-   sudo launchctl start com.s3backup.sync.daemon
-   
-   # Stop
-   sudo launchctl stop com.s3backup.sync.daemon
-   
-   # Check status
-   sudo launchctl list | grep s3backup
-   
-   # View logs
-   sudo tail -f /var/log/s3backup_daemon.log
-   
-   # Uninstall
-   sudo launchctl unload /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
-   sudo rm /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
-   ```
-
-5. **Switch to Daily 2 AM Schedule** (Optional)
-   ```bash
-   # Edit the generated plist file
-   nano com.s3backup.sync.daemon.plist
-   
-   # Comment out StartInterval and uncomment StartCalendarInterval section
-   # Then reinstall:
-   sudo ./setup_macos_daemon.sh
    ```
 
 ### **Method C: Automator App (GUI Option)**
@@ -392,7 +388,7 @@ sudo crontab -e
    # Linux: journalctl -u s3backup.service
    
    # Check script logs
-       tail -f logs/status.log
+   tail -f logs/status.log
    ```
 
 ### **Testing Your Setup**
@@ -405,7 +401,7 @@ python run.py --config config.json --dry-run
 
 # Check scheduling
 # Windows: Task Scheduler → Right-click task → Run
-# Mac: sudo launchctl start com.s3backup.sync.daemon
+# Mac: launchctl start com.s3backup.sync.daemon
 # Linux: sudo systemctl start s3backup.service
 ```
 
@@ -434,12 +430,12 @@ python run.py --config config.json --dry-run
     "storage_class": null,
     "sse": false
   },
-     "logging": {
-     "level": "INFO",
-     "file": "logs/status.log",
-     "max_size_mb": 10,
-     "backup_count": 5
-   },
+  "logging": {
+    "level": "INFO",
+    "file": "logs/status.log",
+    "max_size_mb": 10,
+    "backup_count": 5
+  },
   "automation": {
     "enabled": true,
     "interval_hours": 6,
@@ -462,7 +458,7 @@ python run.py --config config.json --dry-run
 | | `storage_class` | S3 storage class filter | `null` |
 | | `sse` | Enable server-side encryption | `false` |
 | **Logging** | `level` | Log level (DEBUG/INFO/WARNING/ERROR) | `"INFO"` |
-| | `file` | Log file path | `"status.log"` |
+| | `file` | Log file path | `"logs/status.log"` |
 | | `max_size_mb` | Max log file size before rotation | `10` |
 | | `backup_count` | Number of log files to keep | `5` |
 | **Automation** | `interval_hours` | Hours between syncs in continuous mode | `6` |

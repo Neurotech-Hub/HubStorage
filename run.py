@@ -643,7 +643,7 @@ class S3BackupSync:
             },
             "logging": {
                 "level": "INFO",
-                                 "file": "logs/status.log",
+                "file": "logs/status.log",
                 "max_size_mb": 10,
                 "backup_count": 5
             },
@@ -660,6 +660,219 @@ class S3BackupSync:
         
         print(f"Sample configuration created: {output_file}")
         print("Please edit this file with your S3 bucket names and local paths.")
+
+
+    def generate_daemon_config(self, output_file: str = "com.s3backup.sync.daemon.plist"):
+        """Generate a LaunchDaemon plist file with dynamic paths."""
+        import getpass
+        username = getpass.getuser()
+        home_dir = os.path.expanduser("~")
+        current_dir = os.getcwd()
+        
+        # Find Python executable in virtual environment
+        python_exe = sys.executable
+        if os.path.exists(os.path.join(current_dir, ".venv", "bin", "python")):
+            python_exe = os.path.join(current_dir, ".venv", "bin", "python")
+        elif os.path.exists(os.path.join(current_dir, ".venv", "Scripts", "python.exe")):
+            python_exe = os.path.join(current_dir, ".venv", "Scripts", "python.exe")
+        
+        daemon_plist_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.s3backup.sync.daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{python_exe}</string>
+        <string>{os.path.join(current_dir, "run.py")}</string>
+        <string>--config</string>
+        <string>{os.path.join(current_dir, "config.json")}</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>21600</integer>
+    <!-- Use StartCalendarInterval for specific time (e.g., 2 AM daily)
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>WorkingDirectory</key>
+    <string>{current_dir}</string>
+    <key>StandardOutPath</key>
+    <string>{os.path.join(current_dir, "logs", "s3backup_daemon.log")}</string>
+    <key>StandardErrorPath</key>
+    <string>{os.path.join(current_dir, "logs", "s3backup_daemon.error.log")}</string>
+    <key>UserName</key>
+    <string>{username}</string>
+    <key>GroupName</key>
+    <string>staff</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:{os.path.dirname(python_exe)}</string>
+        <key>HOME</key>
+        <string>{home_dir}</string>
+    </dict>
+</dict>
+</plist>'''
+        
+        with open(output_file, 'w') as f:
+            f.write(daemon_plist_content)
+        
+        print(f"LaunchDaemon configuration created: {output_file}")
+        print(f"Username: {username}")
+        print(f"Python executable: {python_exe}")
+        print(f"Working directory: {current_dir}")
+        print("")
+        print("To install the daemon:")
+        print(f"1. cp {output_file} ~/Library/LaunchAgents/")
+        print(f"2. launchctl load ~/Library/LaunchAgents/{output_file}")
+        print("")
+        print("To uninstall:")
+        print(f"1. launchctl unload ~/Library/LaunchAgents/{output_file}")
+        print(f"2. rm ~/Library/LaunchAgents/{output_file}")
+
+    def manage_daemon(self, action: str):
+        """Manage the LaunchDaemon installation and operation."""
+        import subprocess
+        import getpass
+        
+        daemon_name = "com.s3backup.sync.daemon"
+        launch_agents_dir = os.path.expanduser("~/Library/LaunchAgents")
+        plist_file = os.path.join(launch_agents_dir, f"{daemon_name}.plist")
+        
+        def run_command(cmd, capture_output=True):
+            """Run a shell command and return result."""
+            try:
+                result = subprocess.run(cmd, shell=True, capture_output=capture_output, text=True, check=True)
+                return result.stdout.strip() if capture_output else True
+            except subprocess.CalledProcessError as e:
+                if capture_output:
+                    return e.stderr.strip()
+                return False
+        
+        def check_daemon_running():
+            """Check if daemon is currently running."""
+            output = run_command(f"launchctl list | grep {daemon_name}")
+            return bool(output and daemon_name in output)
+        
+        if action == "install":
+            print("📦 Installing S3 Backup Daemon...")
+            
+            # Check if virtual environment exists
+            if not os.path.exists(".venv"):
+                print("❌ Virtual environment not found. Please run: python -m venv .venv")
+                return False
+            
+            # Generate daemon configuration
+            print("🔧 Generating daemon configuration...")
+            self.generate_daemon_config()
+            
+            # Stop existing daemon if running
+            if check_daemon_running():
+                print("🛑 Stopping existing daemon...")
+                run_command(f"launchctl unload {plist_file}", capture_output=False)
+            
+            # Copy plist file
+            print("📋 Installing daemon configuration...")
+            run_command(f"cp {daemon_name}.plist {launch_agents_dir}/", capture_output=False)
+            
+            # Load the daemon
+            print("🚀 Starting daemon...")
+            run_command(f"launchctl load {plist_file}", capture_output=False)
+            
+            print("✅ Daemon installed successfully!")
+            if check_daemon_running():
+                print("📊 Status: Running")
+            else:
+                print("📊 Status: Not running")
+            print("📝 Logs: tail -f logs/s3backup_daemon.log")
+            return True
+            
+        elif action == "uninstall":
+            print("🗑️  Uninstalling S3 Backup Daemon...")
+            
+            # Stop and unload daemon
+            if check_daemon_running():
+                print("🛑 Stopping daemon...")
+                run_command(f"launchctl unload {plist_file}", capture_output=False)
+            
+            # Remove plist file
+            if os.path.exists(plist_file):
+                print("🗑️  Removing daemon configuration...")
+                run_command(f"rm {plist_file}", capture_output=False)
+            
+            print("✅ Daemon uninstalled successfully!")
+            return True
+            
+        elif action == "status":
+            print("📊 S3 Backup Daemon Status")
+            print("==========================")
+            
+            if check_daemon_running():
+                print("✅ Daemon is running")
+                output = run_command(f"launchctl list | grep {daemon_name}")
+                print(f"   {output}")
+            else:
+                print("❌ Daemon is not running")
+            
+            if os.path.exists(plist_file):
+                print(f"📋 Configuration file exists: {plist_file}")
+                # Read and display interval
+                try:
+                    with open(plist_file, 'r') as f:
+                        content = f.read()
+                        import re
+                        interval_match = re.search(r'<integer>(\d+)</integer>', content)
+                        if interval_match:
+                            interval_seconds = int(interval_match.group(1))
+                            interval_hours = interval_seconds / 3600
+                            print(f"⏰ Interval: {interval_seconds} seconds ({interval_hours:.1f} hours)")
+                except Exception as e:
+                    print(f"⚠️  Could not read interval: {e}")
+            else:
+                print("📋 Configuration file not found")
+            
+            log_file = "logs/s3backup_daemon.log"
+            if os.path.exists(log_file):
+                print("📝 Recent logs:")
+                try:
+                    with open(log_file, 'r') as f:
+                        lines = f.readlines()
+                        for line in lines[-3:]:
+                            print(f"   {line.strip()}")
+                except Exception as e:
+                    print(f"⚠️  Could not read logs: {e}")
+            else:
+                print("📝 No log file found")
+            
+            return True
+            
+        elif action == "restart":
+            print("🔄 Restarting S3 Backup Daemon...")
+            
+            if check_daemon_running():
+                run_command(f"launchctl unload {plist_file}", capture_output=False)
+            
+            import time
+            time.sleep(2)
+            
+            if os.path.exists(plist_file):
+                run_command(f"launchctl load {plist_file}", capture_output=False)
+                print("✅ Daemon restarted successfully!")
+            else:
+                print("❌ Daemon configuration not found. Run 'python run.py --manage-daemon install' first.")
+                return False
+            
+            return True
+        
+        return False
 
     def setup_automation(self):
         """Generate platform-specific automation setup scripts and instructions."""
@@ -1012,6 +1225,15 @@ Examples:
   
   # Create sample configuration
   python run.py --create-config
+  
+  # Generate LaunchDaemon plist for macOS automation
+  python run.py --generate-daemon
+  
+  # Manage LaunchDaemon (install, uninstall, status, restart)
+  python run.py --manage-daemon install
+  python run.py --manage-daemon status
+  python run.py --manage-daemon restart
+  python run.py --manage-daemon uninstall
         """
     )
     
@@ -1024,6 +1246,10 @@ Examples:
                        help='Run in continuous mode based on automation settings')
     parser.add_argument('--create-config', action='store_true',
                        help='Create a sample configuration file')
+    parser.add_argument('--generate-daemon', action='store_true',
+                       help='Generate LaunchDaemon plist file for macOS automation')
+    parser.add_argument('--manage-daemon', choices=['install', 'uninstall', 'status', 'restart'],
+                       help='Manage LaunchDaemon: install, uninstall, status, or restart')
     parser.add_argument('--setup-automation', action='store_true',
                        help='Generate platform-specific automation setup scripts')
     parser.add_argument('--aws-profile', help='AWS profile to use (overrides config)')
@@ -1035,6 +1261,18 @@ Examples:
         sync_tool = S3BackupSync()
         sync_tool.create_sample_config()
         return
+    
+    # Generate daemon config
+    if args.generate_daemon:
+        sync_tool = S3BackupSync()
+        sync_tool.generate_daemon_config()
+        return
+    
+    # Manage daemon
+    if args.manage_daemon:
+        sync_tool = S3BackupSync()
+        success = sync_tool.manage_daemon(args.manage_daemon)
+        sys.exit(0 if success else 1)
     
     # Setup automation
     if args.setup_automation:
