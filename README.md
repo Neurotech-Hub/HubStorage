@@ -188,31 +188,35 @@ For production use, set up system-level scheduling that survives reboots.
    sudo launchctl list | grep cron
    ```
 
-### **Method B: LaunchAgent (Recommended for macOS)**
+### **Method B: LaunchDaemon (Recommended for macOS)**
 
-Create a LaunchAgent for better macOS integration:
+Create a LaunchDaemon for system-wide operation that runs even when no user is logged in:
 
-1. **Create LaunchAgent File**
+1. **Generate Automated Setup Files**
    ```bash
-   nano ~/Library/LaunchAgents/com.s3backup.sync.plist
+   python run.py --setup-automation
    ```
+   This creates:
+   - `com.s3backup.sync.daemon.plist` - LaunchDaemon configuration
+   - `setup_macos_daemon.sh` - Installation script
 
-2. **Add Configuration**
+2. **LaunchDaemon Configuration (Generated)**
    ```xml
    <?xml version="1.0" encoding="UTF-8"?>
    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
    <plist version="1.0">
    <dict>
        <key>Label</key>
-       <string>com.s3backup.sync</string>
+       <string>com.s3backup.sync.daemon</string>
        <key>ProgramArguments</key>
        <array>
-           <string>/bin/bash</string>
-           <string>-c</string>
-           <string>cd /path/to/your/script && source .venv/bin/activate && python run.py --config config.json</string>
+           <string>/usr/bin/python3</string>
+           <string>/path/to/your/script/run.py</string>
+           <string>--config</string>
+           <string>/path/to/your/script/config.json</string>
        </array>
        <key>StartInterval</key>
-       <integer>21600</integer> <!-- 6 hours in seconds -->
+       <integer>21600</integer>
        <!-- Use StartCalendarInterval for specific time (e.g., 2 AM daily)
        <key>StartCalendarInterval</key>
        <dict>
@@ -224,41 +228,52 @@ Create a LaunchAgent for better macOS integration:
        -->
        <key>RunAtLoad</key>
        <true/>
+       <key>WorkingDirectory</key>
+       <string>/path/to/your/script</string>
        <key>StandardOutPath</key>
-       <string>/tmp/s3backup.log</string>
+       <string>/var/log/s3backup_daemon.log</string>
        <key>StandardErrorPath</key>
-       <string>/tmp/s3backup.error.log</string>
-       <key>EnvironmentVariables</key>
-       <dict>
-           <key>PATH</key>
-           <string>/usr/local/bin:/usr/bin:/bin</string>
-       </dict>
+       <string>/var/log/s3backup_daemon.error.log</string>
+       <key>UserName</key>
+       <string>root</string>
+       <key>GroupName</key>
+       <string>wheel</string>
    </dict>
    </plist>
    ```
 
-3. **Load and Start LaunchAgent**
+3. **Install LaunchDaemon**
    ```bash
-   # Load the agent
-   launchctl load ~/Library/LaunchAgents/com.s3backup.sync.plist
-   
-   # Start it immediately
-   launchctl start com.s3backup.sync
-   
-   # Check status
-   launchctl list | grep s3backup
+   sudo ./setup_macos_daemon.sh
    ```
 
-4. **Manage LaunchAgent**
+4. **Manage LaunchDaemon**
    ```bash
-   # Stop
-   launchctl stop com.s3backup.sync
+   # Start
+   sudo launchctl start com.s3backup.sync.daemon
    
-   # Unload (disable)
-   launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.plist
+   # Stop
+   sudo launchctl stop com.s3backup.sync.daemon
+   
+   # Check status
+   sudo launchctl list | grep s3backup
    
    # View logs
-   tail -f /tmp/s3backup.log
+   sudo tail -f /var/log/s3backup_daemon.log
+   
+   # Uninstall
+   sudo launchctl unload /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
+   sudo rm /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
+   ```
+
+5. **Switch to Daily 2 AM Schedule** (Optional)
+   ```bash
+   # Edit the generated plist file
+   nano com.s3backup.sync.daemon.plist
+   
+   # Comment out StartInterval and uncomment StartCalendarInterval section
+   # Then reinstall:
+   sudo ./setup_macos_daemon.sh
    ```
 
 ### **Method C: Automator App (GUI Option)**
@@ -390,7 +405,7 @@ python run.py --config config.json --dry-run
 
 # Check scheduling
 # Windows: Task Scheduler → Right-click task → Run
-# Mac: launchctl start com.s3backup.sync
+# Mac: sudo launchctl start com.s3backup.sync.daemon
 # Linux: sudo systemctl start s3backup.service
 ```
 
