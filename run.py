@@ -177,8 +177,6 @@ class S3BackupSync:
         )
         self.backup_log_handler.setFormatter(formatter)
         logging.getLogger().addHandler(self.backup_log_handler)
-        
-        logging.info(f"📋 Backup logging enabled: {backup_log_file}")
     
     def log_run_start(self):
         """Log the start of a new backup run with clear separator."""
@@ -467,7 +465,8 @@ class S3BackupSync:
             # Stream output in real-time
             for line in process.stdout:
                 if line.strip():
-                    logging.info(f"AWS CLI: {line.strip()}")
+                    # logging.info(f"AWS CLI: {line.strip()}")   # DEBUG
+                    pass
             
             # Wait for completion and get return code
             return_code = process.wait()
