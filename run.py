@@ -186,8 +186,6 @@ class S3BackupSync:
     
     def log_run_completion(self, success: bool, duration: float = None):
         """Log the completion status of the backup run."""
-        logging.info("")
-        logging.info("=" * 80)
         
         if success and not self.run_errors:
             status_emoji = "✅"
@@ -216,6 +214,9 @@ class S3BackupSync:
             logging.info("❗ Issues encountered during this run:")
             for i, error in enumerate(self.run_errors, 1):
                 logging.info(f"   {i}. {error}")
+
+        logging.info("=" * 80)
+        logging.info("")
     
     def create_sync_session_directory(self, dry_run: bool = False) -> str:
         """Create the main sync session directory with hublink_yyyymmddhhmmss format."""
@@ -752,19 +753,19 @@ Read-Host "Press Enter to continue..."
         print(f"   3. .\\setup_windows_automation.ps1")
 
     def _setup_macos_automation(self, script_dir: str, python_exe: str, config_file: str):
-        """Generate macOS LaunchAgent and cron scripts."""
+        """Generate macOS LaunchAgent and LaunchDaemon scripts."""
         
-        # LaunchAgent plist
-        plist_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+        # LaunchAgent plist (runs only when user is logged in)
+        agent_plist_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.s3backup.sync</string>
+    <string>com.s3backup.sync.agent</string>
     <key>ProgramArguments</key>
     <array>
         <string>{python_exe}</string>
-                        <string>{script_dir}/run.py</string>
+        <string>{script_dir}/run.py</string>
         <string>--config</string>
         <string>{script_dir}/{config_file}</string>
     </array>
@@ -775,9 +776,9 @@ Read-Host "Press Enter to continue..."
     <key>WorkingDirectory</key>
     <string>{script_dir}</string>
     <key>StandardOutPath</key>
-    <string>/tmp/s3backup.log</string>
+    <string>/tmp/s3backup_agent.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/s3backup.error.log</string>
+    <string>/tmp/s3backup_agent.error.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -786,14 +787,57 @@ Read-Host "Press Enter to continue..."
 </dict>
 </plist>'''
         
-        with open("com.s3backup.sync.plist", 'w') as f:
-            f.write(plist_content)
+        # LaunchDaemon plist (runs always, even when no user is logged in)
+        daemon_plist_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.s3backup.sync.daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{python_exe}</string>
+        <string>{script_dir}/run.py</string>
+        <string>--config</string>
+        <string>{script_dir}/{config_file}</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>21600</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>WorkingDirectory</key>
+    <string>{script_dir}</string>
+    <key>StandardOutPath</key>
+    <string>/var/log/s3backup_daemon.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/s3backup_daemon.error.log</string>
+    <key>UserName</key>
+    <string>root</string>
+    <key>GroupName</key>
+    <string>wheel</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:{os.path.dirname(python_exe)}</string>
+        <key>HOME</key>
+        <string>/var/root</string>
+    </dict>
+</dict>
+</plist>'''
         
-        # Setup script
-        setup_script = f'''#!/bin/bash
+        with open("com.s3backup.sync.agent.plist", 'w') as f:
+            f.write(agent_plist_content)
+            
+        with open("com.s3backup.sync.daemon.plist", 'w') as f:
+            f.write(daemon_plist_content)
+        
+        # LaunchAgent setup script
+        agent_setup_script = f'''#!/bin/bash
 # macOS LaunchAgent Setup Script for S3 Backup Sync
+# This runs ONLY when a user is logged in
 
 echo "🍎 Setting up macOS LaunchAgent for S3 Backup Sync..."
+echo "⚠️  This will only run when you are logged in!"
 echo "Script Directory: {script_dir}"
 echo "Python Executable: {python_exe}"
 
@@ -801,36 +845,91 @@ echo "Python Executable: {python_exe}"
 mkdir -p ~/Library/LaunchAgents
 
 # Copy plist file
-cp com.s3backup.sync.plist ~/Library/LaunchAgents/
+cp com.s3backup.sync.agent.plist ~/Library/LaunchAgents/
 
 # Unload existing agent if it exists
-launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.plist 2>/dev/null || true
+launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.agent.plist 2>/dev/null || true
 
 # Load the new agent
-launchctl load ~/Library/LaunchAgents/com.s3backup.sync.plist
+launchctl load ~/Library/LaunchAgents/com.s3backup.sync.agent.plist
 
 # Start it immediately
-launchctl start com.s3backup.sync
+launchctl start com.s3backup.sync.agent
 
 echo "✅ LaunchAgent setup complete!"
 echo ""
-echo "The service will run every 6 hours and start at boot."
+echo "The service will run every 6 hours when you are logged in."
 echo ""
 echo "Management commands:"
-echo "  Start:   launchctl start com.s3backup.sync"
-echo "  Stop:    launchctl stop com.s3backup.sync"
+echo "  Start:   launchctl start com.s3backup.sync.agent"
+echo "  Stop:    launchctl stop com.s3backup.sync.agent"
 echo "  Status:  launchctl list | grep s3backup"
-echo "  Logs:    tail -f /tmp/s3backup.log"
+echo "  Logs:    tail -f /tmp/s3backup_agent.log"
 echo ""
 echo "To uninstall:"
-echo "  launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.plist"
-echo "  rm ~/Library/LaunchAgents/com.s3backup.sync.plist"
+echo "  launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.agent.plist"
+echo "  rm ~/Library/LaunchAgents/com.s3backup.sync.agent.plist"
 '''
         
-        with open("setup_macos_automation.sh", 'w') as f:
-            f.write(setup_script)
+        # LaunchDaemon setup script
+        daemon_setup_script = f'''#!/bin/bash
+# macOS LaunchDaemon Setup Script for S3 Backup Sync
+# This runs ALWAYS, even when no user is logged in (RECOMMENDED for servers)
+
+echo "🍎 Setting up macOS LaunchDaemon for S3 Backup Sync..."
+echo "✅ This will run even when no user is logged in!"
+echo "Script Directory: {script_dir}"
+echo "Python Executable: {python_exe}"
+
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then
+    echo "❌ LaunchDaemon setup requires root privileges."
+    echo "Please run: sudo ./setup_macos_daemon.sh"
+    exit 1
+fi
+
+# Create log directory if it doesn't exist
+mkdir -p /var/log
+
+# Copy plist file to system location
+cp com.s3backup.sync.daemon.plist /Library/LaunchDaemons/
+
+# Set proper permissions
+chown root:wheel /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
+chmod 644 /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
+
+# Unload existing daemon if it exists
+launchctl unload /Library/LaunchDaemons/com.s3backup.sync.daemon.plist 2>/dev/null || true
+
+# Load the new daemon
+launchctl load /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
+
+# Start it immediately
+launchctl start com.s3backup.sync.daemon
+
+echo "✅ LaunchDaemon setup complete!"
+echo ""
+echo "The service will run every 6 hours and start at boot, even when no user is logged in."
+echo ""
+echo "Management commands (run as root/sudo):"
+echo "  Start:   sudo launchctl start com.s3backup.sync.daemon"
+echo "  Stop:    sudo launchctl stop com.s3backup.sync.daemon"
+echo "  Status:  sudo launchctl list | grep s3backup"
+echo "  Logs:    sudo tail -f /var/log/s3backup_daemon.log"
+echo ""
+echo "To uninstall:"
+echo "  sudo launchctl unload /Library/LaunchDaemons/com.s3backup.sync.daemon.plist"
+echo "  sudo rm /Library/LaunchDaemons/com.s3backup.sync.daemon.plist"
+'''
         
-        os.chmod("setup_macos_automation.sh", 0o755)
+        with open("setup_macos_agent.sh", 'w') as f:
+            f.write(agent_setup_script)
+        
+        with open("setup_macos_daemon.sh", 'w') as f:
+            f.write(daemon_setup_script)
+        
+        os.chmod("setup_macos_agent.sh", 0o755)
+        os.chmod("setup_macos_daemon.sh", 0o755)
         
         # Cron example
         cron_example = f'''# Add these lines to your crontab (crontab -e)
@@ -845,13 +944,26 @@ echo "  rm ~/Library/LaunchAgents/com.s3backup.sync.plist"
             f.write(cron_example)
         
         print(f"📁 macOS automation setup created:")
-        print(f"   📜 setup_macos_automation.sh (LaunchAgent)")
-        print(f"   📜 com.s3backup.sync.plist")
+        print(f"")
+        print(f"🔴 LaunchAgent (runs only when user logged in):")
+        print(f"   📜 setup_macos_agent.sh")
+        print(f"   📜 com.s3backup.sync.agent.plist")
+        print(f"")
+        print(f"🟢 LaunchDaemon (runs always, even without user login) - RECOMMENDED:")
+        print(f"   📜 setup_macos_daemon.sh")
+        print(f"   📜 com.s3backup.sync.daemon.plist")
+        print(f"")
+        print(f"⚡ Cron alternative:")
         print(f"   📜 crontab_example.txt")
         print(f"")
         print(f"🚀 To set up automation:")
-        print(f"   LaunchAgent: ./setup_macos_automation.sh")
-        print(f"   Cron: crontab -e (then add lines from crontab_example.txt)")
+        print(f"   LaunchAgent:  ./setup_macos_agent.sh")
+        print(f"   LaunchDaemon: sudo ./setup_macos_daemon.sh  (RECOMMENDED)")
+        print(f"   Cron:         crontab -e (then add lines from crontab_example.txt)")
+        print(f"")
+        print(f"💡 For server/headless systems, use LaunchDaemon!")
+        print(f"   LaunchDaemon runs even when no user is logged in.")
+        print(f"   LaunchAgent only runs when the user is logged in.")
 
     def _setup_linux_automation(self, script_dir: str, python_exe: str, config_file: str):
         """Generate Linux systemd and cron scripts."""
