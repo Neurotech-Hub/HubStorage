@@ -88,7 +88,7 @@ Open `config.json` and update:
     "your-important-bucket",
     "your-data-bucket"
   ],
-  "local_base_path": "D:/S3_Backup",
+  "local_base_path": "/Volumes/HUBLINK",
   "aws_profile": "default"
 }
 ```
@@ -114,7 +114,7 @@ python run.py --config config.json
 python run.py --config my_config.json
 
 # Quick single bucket sync
-python run.py --bucket my-bucket --local-path D:/backup/my-bucket
+python run.py --bucket my-bucket --local-path /Volumes/HUBLINK
 
 # Dry run to preview changes
 python run.py --config my_config.json --dry-run
@@ -405,7 +405,7 @@ python run.py --config config.json --dry-run
     "user-uploads",
     "backup-archives"
   ],
-  "local_base_path": "D:/S3_Backup",
+  "local_base_path": "/Volumes/HUBLINK",
   "aws_profile": "default",
   "sync_options": {
     "delete": true,
@@ -439,7 +439,7 @@ python run.py --config config.json --dry-run
 | Section | Option | Description | Default |
 |---------|--------|-------------|---------|
 | **General** | `s3_buckets` | List of S3 bucket names to sync | `[]` |
-| | `local_base_path` | Base directory for local backups | `"./s3_backup"` |
+| | `local_base_path` | Base directory for local backups | `"./hublink_backup"` |
 | | `aws_profile` | AWS CLI profile to use | `"default"` |
 | **Sync Options** | `delete` | Remove local files deleted from S3 | `true` |
 | | `exclude_patterns` | Files/folders to exclude | `["*.tmp", "*/temp/*"]` |
@@ -456,22 +456,44 @@ python run.py --config config.json --dry-run
 
 ## 📁 Directory Structure
 
-The script creates this directory structure:
+The script creates a structured directory layout for each sync session:
 
+### Directory Structure Explanation
+
+**Python Implementation:**
+- **Session Directory**: `hublink_yyyymmddhhmmss` format (e.g., `hublink_20240210123456`)
+- **Timestamp Format**: Full datetime with seconds for unique session identification
+- **S3 Organization**: All S3 buckets are organized under the `s3/` subdirectory
+- **Future-Proof**: `server/` directory reserved for additional data types
+
+**Example with `/Volumes/HUBLINK/` as `local_base_path`:**
 ```
-local_base_path/
-├── bucket-1/
-│   ├── file1.txt
-│   └── folder/
-│       └── file2.txt
-├── bucket-2/
-│   └── data/
+/Volumes/HUBLINK/
+├── hublink_20240210123456/          # sync session
+│   └── s3/
+│       ├── bucket-1/
+│       ├── bucket-2/
+│       └── bucket-3/
 └── logs/
-    ├── status.log
-    └── status.log.1
+    └── status.log                   # Synchronized with script directory logs
 ```
+
+This structure ensures:
+- **Session Isolation**: Each sync run creates a separate timestamped directory
+- **Organization**: Clear separation between S3 content and other data types
+- **Dual Logging**: `status.log` is synchronized between script directory and backup destination
+- **Scalability**: Easy to add other data sources (databases, APIs, etc.) alongside S3
+- **Traceability**: Timestamp in directory name shows exactly when each sync occurred
 
 ## 🔍 Monitoring and Logs
+
+### Dual Logging System
+
+The script maintains synchronized log files in two locations:
+1. **Script Directory**: `logs/status.log` (where you run the Python script)
+2. **Backup Destination**: `{local_base_path}/logs/status.log` (e.g., `/Volumes/HUBLINK/logs/status.log`)
+
+Both log files contain identical information and are updated simultaneously, allowing you to track sync status from either location.
 
 ### Log Levels
 
@@ -488,8 +510,8 @@ local_base_path/
 2024-01-15 14:30:01 - INFO - Starting sync of 2 bucket(s)
 2024-01-15 14:30:01 - INFO - Processing bucket 1/2: production-data
 2024-01-15 14:30:01 - INFO - Disk space check passed. Available: 500.50 GB
-2024-01-15 14:30:01 - INFO - Starting sync: s3://production-data -> D:/S3_Backup/production-data
-2024-01-15 14:30:15 - INFO - AWS CLI: download: s3://production-data/file1.txt to D:/S3_Backup/production-data/file1.txt
+2024-01-15 14:30:01 - INFO - Starting sync: s3://production-data -> /Volumes/HUBLINK/hublink_20240115143000/s3/production-data
+2024-01-15 14:30:15 - INFO - AWS CLI: download: s3://production-data/file1.txt to /Volumes/HUBLINK/hublink_20240115143000/s3/production-data/file1.txt
 2024-01-15 14:32:30 - INFO - Sync completed successfully for production-data. Duration: 149.23 seconds
 ```
 

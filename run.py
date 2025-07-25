@@ -63,15 +63,17 @@ class S3BackupSync:
     def __init__(self, config_file: Optional[str] = None):
         """Initialize the S3 backup sync tool."""
         self.config = self.load_config(config_file)
-        self.setup_logging()
         self.aws_cmd = None  # Will be set by check_prerequisites()
         self.run_errors = []  # Track errors during the run
+        self.sync_session_path = None  # Will store the hublink_yyyymmddhhmmss path for this session
+        self.backup_log_handler = None  # Will store the backup destination log handler
+        self.setup_logging()
         
     def load_config(self, config_file: Optional[str] = None) -> Dict:
         """Load configuration from file or use defaults."""
         default_config = {
             "s3_buckets": [],
-            "local_base_path": "./s3_backup",
+            "local_base_path": "./hublink_backup",
             "aws_profile": "default",
             "sync_options": {
                 "delete": True,
@@ -119,7 +121,7 @@ class S3BackupSync:
         log_config = self.config.get("logging", {})
         log_level = getattr(logging, log_config.get("level", "INFO"))
         
-                # Create logs directory if it doesn't exist
+        # Create logs directory if it doesn't exist
         log_file = log_config.get("file", "status.log")
         log_dir = os.path.dirname(log_file)
         if log_dir:
@@ -131,7 +133,7 @@ class S3BackupSync:
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         
-        # File handler with custom prepending behavior
+        # File handler with custom prepending behavior (script directory)
         if log_file:
             file_handler = PrependingFileHandler(
                 log_file,
@@ -147,6 +149,36 @@ class S3BackupSync:
         logging.getLogger().addHandler(console_handler)
         
         logging.getLogger().setLevel(log_level)
+    
+    def setup_backup_logging(self):
+        """Set up synchronized logging to backup destination."""
+        if self.backup_log_handler is not None:
+            return  # Already set up
+            
+        local_base = self.config["local_base_path"]
+        backup_logs_dir = os.path.join(local_base, "logs")
+        backup_log_file = os.path.join(backup_logs_dir, "status.log")
+        
+        # Create backup logs directory
+        os.makedirs(backup_logs_dir, exist_ok=True)
+        
+        # Configure logging format
+        formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
+        # Create backup log handler
+        log_config = self.config.get("logging", {})
+        self.backup_log_handler = PrependingFileHandler(
+            backup_log_file,
+            maxBytes=log_config.get("max_size_mb", 10) * 1024 * 1024,
+            backupCount=log_config.get("backup_count", 5)
+        )
+        self.backup_log_handler.setFormatter(formatter)
+        logging.getLogger().addHandler(self.backup_log_handler)
+        
+        logging.info(f"📋 Backup logging enabled: {backup_log_file}")
     
     def log_run_start(self):
         """Log the start of a new backup run with clear separator."""
@@ -179,10 +211,40 @@ class S3BackupSync:
         
         logging.info(f"📊 Status: {status_detail}")
         
+        if self.sync_session_path:
+            logging.info(f"📁 Backup Location: {self.sync_session_path}")
+        
         if self.run_errors:
             logging.info("❗ Issues encountered during this run:")
             for i, error in enumerate(self.run_errors, 1):
                 logging.info(f"   {i}. {error}")
+    
+    def create_sync_session_directory(self, dry_run: bool = False) -> str:
+        """Create the main sync session directory with hublink_yyyymmddhhmmss format."""
+        if self.sync_session_path is not None:
+            return self.sync_session_path
+            
+        # Set up backup logging first (creates logs directory under local_base_path)
+        if not dry_run:
+            self.setup_backup_logging()
+            
+        local_base = self.config["local_base_path"]
+        
+        # Create timestamped directory name with format: hublink_yyyymmddhhmmss
+        now = datetime.now()
+        timestamp = now.strftime("%Y%m%d%H%M%S")
+        session_dir_name = f"hublink_{timestamp}"
+        session_path = os.path.join(local_base, session_dir_name)
+        
+        # Create the session directory and s3 subdirectory if NOT doing a dry run
+        if not dry_run:
+            os.makedirs(os.path.join(session_path, "s3"), exist_ok=True)
+            logging.info(f"Created sync session directory: {session_path}")
+        else:
+            logging.info(f"[DRY RUN] Would create sync session directory: {session_path}")
+        
+        self.sync_session_path = session_path
+        return session_path
     
     def find_aws_executable(self) -> Optional[str]:
         """Find AWS CLI executable in various locations."""
@@ -364,13 +426,11 @@ class S3BackupSync:
     
     def sync_bucket(self, bucket_name: str, dry_run: bool = False) -> bool:
         """Sync a single S3 bucket to local storage."""
-        local_base = self.config["local_base_path"]
+        # Create or get the session directory
+        session_path = self.create_sync_session_directory(dry_run)
         
-        # Create timestamped directory name with format: yymmdd-hh_{bucket_name}
-        now = datetime.now()
-        timestamp = now.strftime("%y%m%d-%H")
-        timestamped_bucket_name = f"{timestamp}_{bucket_name}"
-        local_path = os.path.join(local_base, timestamped_bucket_name)
+        # Create bucket path under session/s3/bucket_name
+        local_path = os.path.join(session_path, "s3", bucket_name)
         
         # Only create local directory if NOT doing a dry run
         if not dry_run:
@@ -554,7 +614,7 @@ class S3BackupSync:
                 "my-important-bucket",
                 "my-data-bucket"
             ],
-            "local_base_path": "./s3_backup",
+            "local_base_path": "./hublink_backup",
             "aws_profile": "default",
             "sync_options": {
                 "delete": True,
