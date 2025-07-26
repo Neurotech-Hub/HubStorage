@@ -4,8 +4,8 @@
 echo "🚀 Starting HubStorage Web Hypervisor..."
 
 # Check if we're in the right directory
-if [ ! -f "hubstorage_web.py" ]; then
-    echo "❌ Error: hubstorage_web.py not found"
+if [ ! -f "src/hubstorage_web.py" ]; then
+    echo "❌ Error: src/hubstorage_web.py not found"
     echo "Please run this script from the HubStorage directory"
     exit 1
 fi
@@ -13,7 +13,7 @@ fi
 # Check if virtual environment exists
 if [ ! -d ".venv" ]; then
     echo "⚠️ Virtual environment not found. Setting up..."
-    ./setup_test_env.sh
+    ./scripts/setup_test_env.sh
 fi
 
 # Activate virtual environment
@@ -34,4 +34,4 @@ echo "📱 Open your browser to: http://localhost:5002"
 echo "🛑 Press Ctrl+C to stop"
 echo ""
 
-python hubstorage_web.py 
+python src/hubstorage_web.py 

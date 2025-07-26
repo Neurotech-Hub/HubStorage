@@ -1,0 +1,45 @@
+{
+  "s3_buckets": [
+    "my-important-bucket",
+    "my-data-bucket"
+  ],
+  "local_base_path": "./hublink_backup",
+  "aws_profile": "default",
+  "sync_options": {
+    "delete": true,
+    "exclude_patterns": [
+      "*.tmp",
+      "*.temp",
+      "*/temp/*",
+      "*/cache/*",
+      "*/.cache/*",
+      "*/tmp/*",
+      ".DS_Store",
+      ".DS_Store?",
+      "._*",
+      ".Spotlight-V100/*",
+      ".Trashes/*",
+      ".fseventsd/*",
+      ".VolumeIcon.icns",
+      ".com.apple.timemachine.donotpresent",
+      ".AppleDouble/*",
+      ".LSOverride",
+      "*.localized"
+    ],
+    "include_patterns": [],
+    "storage_class": null,
+    "sse": false
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "data/logs/status.log",
+    "max_size_mb": 10,
+    "backup_count": 5
+  },
+  "automation": {
+    "enabled": false,
+    "interval_hours": 6,
+    "max_retries": 3,
+    "retry_delay_minutes": 5
+  }
+}

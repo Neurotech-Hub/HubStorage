@@ -36,7 +36,7 @@ cd "$HUBSTORAGE_DIR"
 # Check if virtual environment exists
 if [ ! -d ".venv" ]; then
     echo "ERROR: Virtual environment not found in $HUBSTORAGE_DIR"
-    echo "Please run: ./setup_test_env.sh"
+    echo "Please run: ./scripts/setup_test_env.sh"
     exit 1
 fi
 
@@ -45,7 +45,7 @@ source .venv/bin/activate
 
 # Run the sync with test mode (safe for testing)
 echo "Starting S3 backup sync..."
-python run.py --config config.json --test-mode
+python src/run.py --config config.json --test-mode
 
 # Exit with the same code as the python script
 exit $? 

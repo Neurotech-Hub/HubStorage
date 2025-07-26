@@ -46,7 +46,7 @@ def check_launch_agent_status():
         return False
     
     # Check log file
-    log_file = "logs/s3backup_daemon.log"
+    log_file = "data/logs/s3backup_daemon.log"
     if os.path.exists(log_file):
         print("✅ Log file exists:", log_file)
         # Show last few lines
@@ -118,8 +118,13 @@ def main():
     print()
     
     # Check if we're in the right directory
-    if not os.path.exists("run.py"):
-        print("❌ Error: run.py not found in current directory")
+if not os.path.exists("run.py"):
+    # Try to find run.py in parent directory (src/)
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if os.path.exists(os.path.join(parent_dir, "src", "run.py")):
+        os.chdir(parent_dir)  # Change to project root
+    else:
+        print("❌ Error: run.py not found in current directory or src/")
         print("Please run this script from the HubStorage directory")
         sys.exit(1)
     

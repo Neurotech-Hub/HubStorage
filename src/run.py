@@ -10,9 +10,9 @@ Prerequisites:
 - Sufficient local storage space
 
 Usage:
-    python run.py --config config.json
-    python run.py --bucket my-bucket --local-path /backup/path
-    python run.py --dry-run  # Test without actual sync
+    python src/run.py --config config.json
+    python src/run.py --bucket my-bucket --local-path /backup/path
+    python src/run.py --dry-run  # Test without actual sync
 """
 
 import argparse
@@ -661,7 +661,7 @@ class S3BackupSync:
             },
             "logging": {
                 "level": "INFO",
-                "file": "logs/status.log",
+                "file": "data/logs/status.log",
                 "max_size_mb": 10,
                 "backup_count": 5
             },
@@ -680,7 +680,7 @@ class S3BackupSync:
         print("Please edit this file with your S3 bucket names and local paths.")
 
 
-    def generate_daemon_config(self, output_file: str = "com.s3backup.sync.daemon.plist"):
+    def generate_daemon_config(self, output_file: str = "data/config/com.s3backup.sync.daemon.plist"):
         """Generate a LaunchDaemon plist file with dynamic paths."""
         import getpass
         username = getpass.getuser()
@@ -808,7 +808,7 @@ class S3BackupSync:
                 print("📊 Status: Running")
             else:
                 print("📊 Status: Not running")
-            print("📝 Logs: tail -f logs/s3backup_daemon.log")
+            print("📝 Logs: tail -f data/logs/s3backup_daemon.log")
             return True
             
         elif action == "uninstall":
@@ -855,7 +855,7 @@ class S3BackupSync:
             else:
                 print("📋 Configuration file not found")
             
-            log_file = "logs/s3backup_daemon.log"
+            log_file = "data/logs/s3backup_daemon.log"
             if os.path.exists(log_file):
                 print("📝 Recent logs:")
                 try:
@@ -883,7 +883,7 @@ class S3BackupSync:
                 run_command(f"launchctl load {plist_file}", capture_output=False)
                 print("✅ Daemon restarted successfully!")
             else:
-                print("❌ Daemon configuration not found. Run 'python run.py --manage-daemon install' first.")
+                print("❌ Daemon configuration not found. Run 'python src/run.py --manage-daemon install' first.")
                 return False
             
             return True
@@ -1031,7 +1031,7 @@ Read-Host "Press Enter to continue..."
 </dict>
 </plist>'''
         
-        with open("com.s3backup.sync.daemon.plist", 'w') as f:
+        with open("data/config/com.s3backup.sync.daemon.plist", 'w') as f:
             f.write(daemon_plist_content)
         
         # LaunchDaemon setup script
@@ -1055,17 +1055,17 @@ fi
 mkdir -p /var/log
 
 # Copy plist file to system location
-cp com.s3backup.sync.daemon.plist /Library/LaunchDaemons/
+cp data/config/com.s3backup.sync.daemon.plist /Library/LaunchDaemons/
 
 # Set proper permissions
-chown root:wheel /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
-chmod 644 /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
+chown root:wheel /Library/LaunchDaemons/data/config/com.s3backup.sync.daemon.plist
+chmod 644 /Library/LaunchDaemons/data/config/com.s3backup.sync.daemon.plist
 
 # Unload existing daemon if it exists
-launchctl unload /Library/LaunchDaemons/com.s3backup.sync.daemon.plist 2>/dev/null || true
+launchctl unload /Library/LaunchDaemons/data/config/com.s3backup.sync.daemon.plist 2>/dev/null || true
 
 # Load the new daemon
-launchctl load /Library/LaunchDaemons/com.s3backup.sync.daemon.plist
+launchctl load /Library/LaunchDaemons/data/config/com.s3backup.sync.daemon.plist
 
 # Start it immediately
 launchctl start com.s3backup.sync.daemon
@@ -1075,7 +1075,7 @@ echo ""
 echo "The service will run periodically and start at boot, even when no user is logged in."
 echo ""
 echo "💡 To run daily at 2 AM instead:"
-echo "   1. Edit com.s3backup.sync.daemon.plist"
+echo "   1. Edit data/config/com.s3backup.sync.daemon.plist"
 echo "   2. Comment out StartInterval and uncomment StartCalendarInterval section"
 echo "   3. Run: sudo ./setup_macos_daemon.sh again"
 echo ""
@@ -1086,8 +1086,8 @@ echo "  Status:  sudo launchctl list | grep s3backup"
 echo "  Logs:    sudo tail -f /var/log/s3backup_daemon.log"
 echo ""
 echo "To uninstall:"
-echo "  sudo launchctl unload /Library/LaunchDaemons/com.s3backup.sync.daemon.plist"
-echo "  sudo rm /Library/LaunchDaemons/com.s3backup.sync.daemon.plist"
+echo "  sudo launchctl unload /Library/LaunchDaemons/data/config/com.s3backup.sync.daemon.plist"
+echo "  sudo rm /Library/LaunchDaemons/data/config/com.s3backup.sync.daemon.plist"
 '''
         
         with open("setup_macos_daemon.sh", 'w') as f:
@@ -1111,7 +1111,7 @@ echo "  sudo rm /Library/LaunchDaemons/com.s3backup.sync.daemon.plist"
         print(f"")
         print(f"🟢 LaunchDaemon (runs always, even without user login):")
         print(f"   📜 setup_macos_daemon.sh")
-        print(f"   📜 com.s3backup.sync.daemon.plist")
+        print(f"   📜 data/config/com.s3backup.sync.daemon.plist")
         print(f"")
         print(f"⚡ Cron alternative:")
         print(f"   📜 crontab_example.txt")
@@ -1228,28 +1228,28 @@ def main():
         epilog="""
 Examples:
   # Run with config file
-  python run.py --config my_config.json
+  python src/run.py --config my_config.json
   
   # Quick sync with command line options
-  python run.py --bucket my-bucket --local-path /backup/s3
+  python src/run.py --bucket my-bucket --local-path /backup/s3
   
   # Dry run to see what would be synced
-  python run.py --config my_config.json --dry-run
+  python src/run.py --config my_config.json --dry-run
   
   # Continuous mode (runs periodically)
-  python run.py --config my_config.json --continuous
+  python src/run.py --config my_config.json --continuous
   
   # Create sample configuration
-  python run.py --create-config
+  python src/run.py --create-config
   
   # Generate LaunchDaemon plist for macOS automation
-  python run.py --generate-daemon
+  python src/run.py --generate-daemon
   
   # Manage LaunchDaemon (install, uninstall, status, restart)
-  python run.py --manage-daemon install
-  python run.py --manage-daemon status
-  python run.py --manage-daemon restart
-  python run.py --manage-daemon uninstall
+  python src/run.py --manage-daemon install
+  python src/run.py --manage-daemon status
+  python src/run.py --manage-daemon restart
+  python src/run.py --manage-daemon uninstall
         """
     )
     

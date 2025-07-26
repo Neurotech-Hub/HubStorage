@@ -14,9 +14,9 @@ echo "📁 Current directory: $CURRENT_DIR"
 echo "👤 Username: $USERNAME"
 
 # Check if we're in the right directory
-if [ ! -f "run.py" ] || [ ! -f "launch_agent_wrapper.sh" ]; then
+if [ ! -f "src/run.py" ] || [ ! -f "scripts/launch_agent_wrapper.sh" ]; then
     echo "❌ Error: Must run this script from the HubStorage directory"
-    echo "   (where run.py and launch_agent_wrapper.sh are located)"
+    echo "   (where src/run.py and scripts/launch_agent_wrapper.sh are located)"
     exit 1
 fi
 
@@ -25,7 +25,7 @@ mkdir -p logs
 
 # Create the portable plist file
 echo "📋 Creating portable plist file..."
-cat > com.s3backup.sync.daemon.plist << EOF
+cat > data/config/com.s3backup.sync.daemon.plist << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -35,7 +35,7 @@ cat > com.s3backup.sync.daemon.plist << EOF
     <key>ProgramArguments</key>
     <array>
         <string>$CURRENT_DIR/.venv/bin/python</string>
-        <string>$CURRENT_DIR/run.py</string>
+        <string>$CURRENT_DIR/src/run.py</string>
         <string>--config</string>
         <string>config.json</string>
         <string>--test-mode</string>
@@ -47,7 +47,7 @@ cat > com.s3backup.sync.daemon.plist << EOF
     <key>WorkingDirectory</key>
     <string>$CURRENT_DIR</string>
     <key>StandardOutPath</key>
-    <string>$CURRENT_DIR/logs/s3backup_daemon.log</string>
+    <string>$CURRENT_DIR/data/logs/s3backup_daemon.log</string>
     <key>StandardErrorPath</key>
     <string>$CURRENT_DIR/logs/s3backup_daemon.error.log</string>
     <key>UserName</key>
@@ -76,7 +76,7 @@ fi
 
 # Install the LaunchAgent
 echo "📦 Installing LaunchAgent..."
-cp com.s3backup.sync.daemon.plist "$HOME/Library/LaunchAgents/"
+cp data/config/com.s3backup.sync.daemon.plist "$HOME/Library/LaunchAgents/"
 launchctl load "$HOME/Library/LaunchAgents/com.s3backup.sync.daemon.plist"
 
 echo ""
@@ -84,12 +84,12 @@ echo "🎉 Portable LaunchAgent setup complete!"
 echo ""
 echo "📋 Status:"
 echo "   ✅ Plist file: $HOME/Library/LaunchAgents/com.s3backup.sync.daemon.plist"
-echo "   ✅ Wrapper script: $CURRENT_DIR/launch_agent_wrapper.sh"
+echo "   ✅ Wrapper script: $CURRENT_DIR/scripts/launch_agent_wrapper.sh"
 echo "   ✅ Log files: $CURRENT_DIR/logs/"
 echo ""
 echo "🔍 To check status:"
 echo "   launchctl list | grep s3backup"
-echo "   tail -f $CURRENT_DIR/logs/s3backup_daemon.log"
+echo "   tail -f $CURRENT_DIR/data/logs/s3backup_daemon.log"
 echo ""
 echo "🔄 To uninstall:"
 echo "   launchctl unload $HOME/Library/LaunchAgents/com.s3backup.sync.daemon.plist"

@@ -89,8 +89,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # 3. Start the web interface
-./start_web.sh
-# Or: python hubstorage_web.py
+./scripts/start_web.sh
+# Or: python src/hubstorage_web.py
 ```
 
 Then open your browser to `http://localhost:5002` and use the web interface to:
@@ -104,7 +104,7 @@ Then open your browser to `http://localhost:5002` and use the web interface to:
 #### 1. Generate Configuration File
 
 ```bash
-python run.py --create-config
+python src/run.py --create-config
 ```
 
 This creates `config.json` with sample settings using your user-specific paths.
@@ -127,13 +127,13 @@ Open `config.json` and update:
 #### 3. Test with Dry Run
 
 ```bash
-python run.py --config config.json --dry-run
+python src/run.py --config config.json --dry-run
 ```
 
 #### 4. Run Actual Sync
 
 ```bash
-python run.py --config config.json
+python src/run.py --config config.json
 ```
 
 ## 🧪 **Test Mode (No AWS Credentials Required)**
@@ -142,13 +142,13 @@ For testing the LaunchAgent setup without AWS credentials:
 
 ```bash
 # Test LaunchAgent installation without AWS credentials
-python run.py --test-mode --manage-daemon install
+python src/run.py --test-mode --manage-daemon install
 
 # Test with sample configuration (no actual S3 sync)
-python run.py --config config.json --test-mode
+python src/run.py --config config.json --test-mode
 
 # Test continuous mode without AWS credentials
-python run.py --config config.json --continuous --test-mode
+python src/run.py --config config.json --continuous --test-mode
 ```
 
 **Test mode features:**
@@ -166,10 +166,10 @@ HubStorage includes a modern web interface for easy management:
 
 ```bash
 # Quick start
-./start_web.sh
+./scripts/start_web.sh
 
 # Or start directly
-python hubstorage_web.py
+python src/hubstorage_web.py
 ```
 
 The web interface runs on `http://localhost:5002` (port 5002 to avoid conflicts with macOS AirPlay).
@@ -201,38 +201,38 @@ The dashboard provides the most important information at a glance:
 
 ```bash
 # Sync with configuration file
-python run.py --config my_config.json
+python src/run.py --config my_config.json
 
 # Quick single bucket sync
-python run.py --bucket my-bucket --local-path /Volumes/HUBLINK
+python src/run.py --bucket my-bucket --local-path /Volumes/HUBLINK
 
 # Dry run to preview changes
-python run.py --config my_config.json --dry-run
+python src/run.py --config my_config.json --dry-run
 
 # Use specific AWS profile
-python run.py --config my_config.json --aws-profile production
+python src/run.py --config my_config.json --aws-profile production
 ```
 
 ### Configuration and Automation
 
 ```bash
 # Create sample configuration with user-specific paths
-python run.py --create-config
+python src/run.py --create-config
 
 # Generate LaunchAgent plist for macOS automation
-python run.py --generate-daemon
+python src/run.py --generate-daemon
 
 # Manage LaunchAgent (install, uninstall, status, restart)
-python run.py --manage-daemon install
-python run.py --manage-daemon status
-python run.py --manage-daemon restart
-python run.py --manage-daemon uninstall
+python src/run.py --manage-daemon install
+python src/run.py --manage-daemon status
+python src/run.py --manage-daemon restart
+python src/run.py --manage-daemon uninstall
 
 # Generate automation helper scripts for all platforms
-python run.py --setup-automation
+python src/run.py --setup-automation
 
 # Continuous mode (runs every 6 hours by default)
-python run.py --config my_config.json --continuous
+python src/run.py --config my_config.json --continuous
 ```
 
 ## 🔄 **Automated Scheduling Setup**
@@ -241,7 +241,7 @@ python run.py --config my_config.json --continuous
 
 Use the web interface for the easiest setup:
 
-1. Start the web interface: `./start_web.sh`
+1. Start the web interface: `./scripts/start_web.sh`
 2. Open `http://localhost:5002`
 3. Click "Install LaunchAgent" on the dashboard
 4. The LaunchAgent will be installed and start automatically
@@ -252,7 +252,7 @@ The script includes a built-in continuous mode that runs indefinitely:
 
 ```bash
 # Run continuously (every 6 hours by default)
-python run.py --config config.json --continuous
+python src/run.py --config config.json --continuous
 
 # Customize interval in config file:
 # "automation": { "interval_hours": 4 }
@@ -275,7 +275,7 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
 
 1. **Start the web interface**
    ```bash
-   ./start_web.sh
+   ./scripts/start_web.sh
    ```
 
 2. **Open the dashboard**
@@ -291,7 +291,7 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
 
 1. **Install LaunchAgent (One Command)**
    ```bash
-   python run.py --manage-daemon install
+   python src/run.py --manage-daemon install
    ```
    This automatically:
    - Generates the agent configuration with your specific paths
@@ -301,7 +301,7 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
 
 2. **Check Status**
    ```bash
-   python run.py --manage-daemon status
+   python src/run.py --manage-daemon status
    ```
    Shows:
    - Whether the agent is running
@@ -312,30 +312,30 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
 3. **Manage the Agent**
    ```bash
    # Restart the agent
-   python run.py --manage-daemon restart
+   python src/run.py --manage-daemon restart
    
    # Uninstall completely
-   python run.py --manage-daemon uninstall
+   python src/run.py --manage-daemon uninstall
    
    # Check status
-   python run.py --manage-daemon status
+   python src/run.py --manage-daemon status
    ```
 
 #### **Manual Installation (Alternative)**
 
 1. **Generate LaunchAgent Configuration**
    ```bash
-   python run.py --generate-daemon
+   python src/run.py --generate-daemon
    ```
-   This creates `com.s3backup.sync.daemon.plist` with your specific paths and username.
+   This creates `data/config/com.s3backup.sync.daemon.plist` with your specific paths and username.
 
 2. **Install LaunchAgent**
    ```bash
    # Copy to LaunchAgents directory (user-specific, no admin required)
-   cp com.s3backup.sync.daemon.plist ~/Library/LaunchAgents/
+   cp data/config/com.s3backup.sync.daemon.plist ~/Library/LaunchAgents/
    
    # Load the agent
-   launchctl load ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+   launchctl load ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
    ```
 
 3. **Verify Installation**
@@ -344,7 +344,7 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
    launchctl list | grep s3backup
    
    # View logs
-   tail -f logs/s3backup_daemon.log
+   tail -f data/logs/s3backup_daemon.log
    ```
 
 4. **Manage LaunchAgent**
@@ -356,8 +356,8 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
    launchctl stop com.s3backup.sync.daemon
    
    # Unload and remove
-   launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
-   rm ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+   launchctl unload ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
+   rm ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
    ```
 
 **Note**: LaunchAgents only run when the user is logged in. For system-wide automation that runs even when no user is logged in, you would need administrator privileges to use LaunchDaemons.
@@ -385,13 +385,13 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
 2. **Add Sync Schedule**
    ```bash
    # Every 6 hours
-   0 */6 * * * cd /path/to/your/script && source .venv/bin/activate && python run.py --config config.json >> /var/log/status.log 2>&1
+   0 */6 * * * cd /path/to/your/script && source .venv/bin/activate && python src/run.py --config config.json >> /var/log/status.log 2>&1
 
    # Daily at 2 AM
-   0 2 * * * cd /path/to/your/script && source .venv/bin/activate && python run.py --config config.json >> /var/log/status.log 2>&1
+   0 2 * * * cd /path/to/your/script && source .venv/bin/activate && python src/run.py --config config.json >> /var/log/status.log 2>&1
 
    # Every 4 hours during business hours (9 AM - 5 PM)
-   0 9-17/4 * * * cd /path/to/your/script && source .venv/bin/activate && python run.py --config config.json
+   0 9-17/4 * * * cd /path/to/your/script && source .venv/bin/activate && python src/run.py --config config.json
    ```
 
 3. **Verify Cron Setup**
@@ -412,7 +412,7 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
    ```bash
    cd /path/to/your/script
    source .venv/bin/activate
-   python run.py --config config.json
+   python src/run.py --config config.json
    ```
 5. Save as `S3BackupSync.app`
 6. Add to **System Preferences** → **Users & Groups** → **Login Items**
@@ -428,7 +428,7 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
 crontab -e
 
 # Add entries (same as macOS)
-0 */6 * * * cd /path/to/script && source .venv/bin/activate && python run.py --config config.json
+0 */6 * * * cd /path/to/script && source .venv/bin/activate && python src/run.py --config config.json
 
 # For system-wide (requires sudo)
 sudo crontab -e
@@ -451,7 +451,7 @@ sudo crontab -e
    Type=oneshot
    User=yourusername
    WorkingDirectory=/path/to/your/script
-   ExecStart=/path/to/your/script/.venv/bin/python run.py --config config.json
+   ExecStart=/path/to/your/script/.venv/bin/python src/run.py --config config.json
    StandardOutput=journal
    StandardError=journal
 
@@ -519,7 +519,7 @@ sudo crontab -e
    # Linux: journalctl -u s3backup.service
    
    # Check script logs
-   tail -f logs/status.log
+   tail -f data/logs/status.log
    ```
 
 ### **Testing Your Setup**
@@ -528,7 +528,7 @@ sudo crontab -e
 # Test the exact command your scheduler will run
 cd /your/script/directory
 source .venv/bin/activate  # if using venv
-python run.py --config config.json --dry-run
+python src/run.py --config config.json --dry-run
 
 # Check scheduling
 # Windows: Task Scheduler → Right-click task → Run
@@ -563,7 +563,7 @@ python run.py --config config.json --dry-run
   },
   "logging": {
     "level": "INFO",
-    "file": "logs/status.log",
+    "file": "data/logs/status.log",
     "max_size_mb": 10,
     "backup_count": 5
   },
@@ -589,7 +589,7 @@ python run.py --config config.json --dry-run
 | | `storage_class` | S3 storage class filter | `null` |
 | | `sse` | Enable server-side encryption | `false` |
 | **Logging** | `level` | Log level (DEBUG/INFO/WARNING/ERROR) | `"INFO"` |
-| | `file` | Log file path | `"logs/status.log"` |
+| | `file` | Log file path | `"data/logs/status.log"` |
 | | `max_size_mb` | Max log file size before rotation | `10` |
 | | `backup_count` | Number of log files to keep | `5` |
 | **Automation** | `interval_hours` | Hours between syncs in continuous mode | `6` |
@@ -632,8 +632,8 @@ This structure ensures:
 ### Dual Logging System
 
 The script maintains synchronized log files in two locations:
-1. **Script Directory**: `logs/status.log` (where you run the Python script)
-2. **Backup Destination**: `{local_base_path}/logs/status.log` (e.g., `/Volumes/HUBLINK/logs/status.log`)
+1. **Script Directory**: `data/logs/status.log` (where you run the Python script)
+2. **Backup Destination**: `{local_base_path}/data/logs/status.log` (e.g., `/Volumes/HUBLINK/data/logs/status.log`)
 
 Both log files contain identical information and are updated simultaneously, allowing you to track sync status from either location.
 
@@ -786,7 +786,7 @@ For issues and questions:
 
 ```bash
 # Run the automated setup script
-./setup_test_env.sh
+./scripts/setup_test_env.sh
 ```
 
 This script will:
@@ -822,7 +822,7 @@ pip install -r requirements.txt
 
 ```bash
 # Generate a test configuration
-python run.py --create-config
+python src/run.py --create-config
 ```
 
 **Edit the generated `config.json` to use a test bucket:**
@@ -840,7 +840,7 @@ python run.py --create-config
 
 ```bash
 # Install the LaunchAgent using test mode
-python run.py --test-mode --manage-daemon install
+python src/run.py --test-mode --manage-daemon install
 ```
 
 **Expected output:**
@@ -851,27 +851,27 @@ python run.py --test-mode --manage-daemon install
 🚀 Starting daemon...
 ✅ Daemon installed successfully!
 📊 Status: Running
-📝 Logs: tail -f logs/s3backup_daemon.log
+📝 Logs: tail -f data/logs/s3backup_daemon.log
 ```
 
 ### **Step 4: Verify LaunchAgent is Working**
 
 ```bash
 # Check if the agent is running
-python run.py --test-mode --manage-daemon status
+python src/run.py --test-mode --manage-daemon status
 
 # Check if it's loaded in launchctl
 launchctl list | grep s3backup
 
 # View the log file
-tail -f logs/s3backup_daemon.log
+tail -f data/logs/s3backup_daemon.log
 ```
 
 ### **Step 5: Test the Agent (Optional)**
 
 ```bash
 # Test with test mode (simulates sync without AWS credentials)
-python run.py --config config.json --test-mode
+python src/run.py --config config.json --test-mode
 
 # Test the agent manually
 launchctl start com.s3backup.sync.daemon
@@ -881,7 +881,7 @@ launchctl start com.s3backup.sync.daemon
 
 ```bash
 # Uninstall the LaunchAgent
-python run.py --test-mode --manage-daemon uninstall
+python src/run.py --test-mode --manage-daemon uninstall
 
 # Remove test files
 rm -rf test_backup logs/
@@ -892,7 +892,7 @@ rm -rf test_backup logs/
 **✅ Success Indicators:**
 - `python3 run.py --test-mode --manage-daemon status` shows "Daemon is running"
 - `launchctl list | grep s3backup` shows the agent in the list
-- Log file `logs/s3backup_daemon.log` exists and has entries
+- Log file `data/logs/s3backup_daemon.log` exists and has entries
 - No error messages during installation
 
 **❌ Common Issues:**
@@ -905,16 +905,16 @@ rm -rf test_backup logs/
 ```bash
 # All-in-one verification
 echo "=== LaunchAgent Status ==="
-python run.py --test-mode --manage-daemon status
+python src/run.py --test-mode --manage-daemon status
 
 echo "=== Launchctl List ==="  
 launchctl list | grep s3backup
 
 echo "=== Log File ==="
-ls -la logs/s3backup_daemon.log 2>/dev/null || echo "No log file found"
+ls -la data/logs/s3backup_daemon.log 2>/dev/null || echo "No log file found"
 
 echo "=== Plist File ==="
-ls -la ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist 2>/dev/null || echo "No plist file found"
+ls -la ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist 2>/dev/null || echo "No plist file found"
 ```
 
 This minimal setup lets you test the LaunchAgent functionality **without needing AWS credentials**. The test mode simulates sync operations and creates all necessary files and logs for verification.
@@ -928,7 +928,7 @@ For a comprehensive test of your LaunchAgent setup, run:
 source .venv/bin/activate
 
 # Run the test script
-python test_launch_agent.py
+python src/test_launch_agent.py
 ```
 
 This script will:
@@ -945,7 +945,7 @@ For a truly portable setup that works across different machines:
 
 ```bash
 # Set up the portable LaunchAgent
-./setup_portable_launch_agent.sh
+./scripts/setup_portable_launch_agent.sh
 ```
 
 This creates:
@@ -966,7 +966,7 @@ This creates:
 If your LaunchAgent fails to start with an error like:
 
 ```
-/bin/bash: .../launch_agent_wrapper.sh: Operation not permitted
+/bin/bash: .../scripts/launch_agent.wrapper.sh: Operation not permitted
 ```
 
 This is usually caused by macOS security restrictions (quarantine attribute, directory permissions, or privacy settings).
@@ -976,14 +976,14 @@ This is usually caused by macOS security restrictions (quarantine attribute, dir
 Run the following script to remove the quarantine attribute and ensure correct permissions:
 
 ```bash
-./fix_macos_permissions.sh
+./scripts/fix_macos_permissions.sh
 ```
 
 Then try reloading the LaunchAgent from the web interface or with:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
-launchctl load ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+launchctl unload ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
+launchctl load ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
 ```
 
 ### **If You Still Have Issues**
@@ -1019,7 +1019,7 @@ If the wrapper script still fails, you can modify the plist to call the Python s
 
 ```bash
 # Edit the plist file
-nano ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+nano ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
 
 # Change the ProgramArguments to call Python directly:
 # <string>/usr/bin/python3</string>

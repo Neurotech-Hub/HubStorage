@@ -14,11 +14,15 @@ from datetime import datetime
 import sys
 from werkzeug.utils import secure_filename
 
-app = Flask(__name__)
+# Get the path to the parent directory (root of the project)
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+template_dir = os.path.join(project_root, 'templates')
+
+app = Flask(__name__, template_folder=template_dir)
 app.secret_key = 'hubstorage-secret-key-2024'
 
 # Global configuration
-CONFIG_FILE = "config.json"
+CONFIG_FILE = os.path.join(project_root, "config.json")
 config = {}
 
 class HubStorageManager:
@@ -46,7 +50,7 @@ class HubStorageManager:
                     },
                     'logging': {
                         'level': 'INFO',
-                        'file': 'logs/status.log',
+                        'file': os.path.join(project_root, 'data/logs/status.log'),
                         'max_size_mb': 10,
                         'backup_count': 5
                     },
@@ -123,14 +127,14 @@ class HubStorageManager:
         status = {
             'launch_agent': self.get_launch_agent_status(),
             'config_exists': os.path.exists(CONFIG_FILE),
-            'venv_exists': os.path.exists('.venv'),
-            'setup_script_exists': os.path.exists('setup_portable_launch_agent.sh'),
-            'test_script_exists': os.path.exists('test_launch_agent.py'),
-            'log_file_exists': os.path.exists('logs/s3backup_daemon.log'),
+            'venv_exists': os.path.exists(os.path.join(project_root, '.venv')),
+            'setup_script_exists': os.path.exists(os.path.join(project_root, 'scripts/setup_portable_launch_agent.sh')),
+            'test_script_exists': os.path.exists(os.path.join(project_root, 'src/test_launch_agent.py')),
+            'log_file_exists': os.path.exists(os.path.join(project_root, 'data/logs/s3backup_daemon.log')),
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
         # Parse last run info from log file
-        log_file = os.path.join(os.getcwd(), 'logs', 's3backup_daemon.log')
+        log_file = os.path.join(project_root, 'data/logs/s3backup_daemon.log')
         last_run_time = None
         last_run_result = None
         if os.path.exists(log_file):
@@ -223,10 +227,15 @@ def launch_agent_action(action):
     """API endpoint for LaunchAgent management."""
     try:
         if action == 'install':
-            if not os.path.exists("setup_portable_launch_agent.sh"):
+            setup_script_path = os.path.join(project_root, "scripts/setup_portable_launch_agent.sh")
+            if not os.path.exists(setup_script_path):
                 return jsonify({'success': False, 'message': 'Setup script not found'})
             
-            result = manager.run_command("./setup_portable_launch_agent.sh")
+            # Change to project root directory before running the script
+            original_cwd = os.getcwd()
+            os.chdir(project_root)
+            result = manager.run_command(setup_script_path)
+            os.chdir(original_cwd)
             if isinstance(result, dict) and not result.get('success', True):
                 return jsonify({'success': False, 'message': 'Failed to install LaunchAgent', 'stderr': result.get('stderr', '')})
             if result:
@@ -263,8 +272,8 @@ def launch_agent_action(action):
                 return jsonify({'success': False, 'message': 'Failed to stop LaunchAgent'})
         
         elif action == 'remove':
-            manager.run_command("launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist")
-            manager.run_command("rm ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist")
+            manager.run_command("launchctl unload ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist")
+            manager.run_command("rm ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist")
             return jsonify({'success': True, 'message': 'LaunchAgent removed successfully'})
         
         else:
@@ -279,10 +288,11 @@ def launch_agent_action(action):
 def run_test():
     """API endpoint for running tests."""
     try:
-        if not os.path.exists("test_launch_agent.py"):
+        test_script_path = os.path.join(project_root, "src/test_launch_agent.py")
+        if not os.path.exists(test_script_path):
             return jsonify({'success': False, 'message': 'Test script not found'})
         
-        result = manager.run_command("python test_launch_agent.py")
+        result = manager.run_command(f"python {test_script_path}")
         if result:
             return jsonify({'success': True, 'message': 'Test completed successfully'})
         else:
@@ -294,7 +304,7 @@ def run_test():
 @app.route('/logs')
 def logs_page():
     """Logs viewing page."""
-    log_file = "logs/s3backup_daemon.log"
+    log_file = os.path.join(project_root, "data/logs/s3backup_daemon.log")
     log_content = ""
     
     if os.path.exists(log_file):
@@ -311,7 +321,7 @@ def logs_page():
 @app.route('/api/logs')
 def api_logs():
     """API endpoint for getting log content."""
-    log_file = "logs/s3backup_daemon.log"
+    log_file = os.path.join(project_root, "data/logs/s3backup_daemon.log")
     if os.path.exists(log_file):
         try:
             with open(log_file, 'r') as f:
@@ -323,9 +333,6 @@ def api_logs():
         return jsonify({'success': False, 'message': 'Log file not found'})
 
 if __name__ == '__main__':
-    # Create templates directory if it doesn't exist
-    os.makedirs('templates', exist_ok=True)
-    
     print("🚀 Starting HubStorage Web Hypervisor...")
     print("📱 Open your browser to: http://localhost:5002")
     print("🛑 Press Ctrl+C to stop")
