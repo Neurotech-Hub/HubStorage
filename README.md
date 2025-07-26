@@ -335,7 +335,7 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
    cp data/config/com.s3backup.sync.daemon.plist ~/Library/LaunchAgents/
    
    # Load the agent
-   launchctl load ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
+   launchctl load ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
    ```
 
 3. **Verify Installation**
@@ -356,8 +356,8 @@ LaunchAgents run on behalf of the logged-in user and don't require administrator
    launchctl stop com.s3backup.sync.daemon
    
    # Unload and remove
-   launchctl unload ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
-   rm ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
+   launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+   rm ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
    ```
 
 **Note**: LaunchAgents only run when the user is logged in. For system-wide automation that runs even when no user is logged in, you would need administrator privileges to use LaunchDaemons.
@@ -914,7 +914,7 @@ echo "=== Log File ==="
 ls -la data/logs/s3backup_daemon.log 2>/dev/null || echo "No log file found"
 
 echo "=== Plist File ==="
-ls -la ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist 2>/dev/null || echo "No plist file found"
+ls -la ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist 2>/dev/null || echo "No plist file found"
 ```
 
 This minimal setup lets you test the LaunchAgent functionality **without needing AWS credentials**. The test mode simulates sync operations and creates all necessary files and logs for verification.
@@ -982,8 +982,8 @@ Run the following script to remove the quarantine attribute and ensure correct p
 Then try reloading the LaunchAgent from the web interface or with:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
-launchctl load ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
+launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+launchctl load ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
 ```
 
 ### **If You Still Have Issues**
@@ -1001,13 +1001,13 @@ launchctl load ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
 xattr -dr com.apple.quarantine .
 
 # Or just the wrapper script
-xattr -d com.apple.quarantine launch_agent_wrapper.sh
+xattr -d com.apple.quarantine scripts/launch_agent_wrapper.sh
 ```
 
 **Step 3: Fix Permissions**
 ```bash
 # Make script executable
-chmod +x launch_agent_wrapper.sh
+chmod +x scripts/launch_agent_wrapper.sh
 
 # Make parent directories accessible
 chmod +x .
@@ -1019,7 +1019,7 @@ If the wrapper script still fails, you can modify the plist to call the Python s
 
 ```bash
 # Edit the plist file
-nano ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist
+nano ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
 
 # Change the ProgramArguments to call Python directly:
 # <string>/usr/bin/python3</string>
