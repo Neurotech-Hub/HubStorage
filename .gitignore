@@ -212,7 +212,11 @@ __marimo__/
 *.txt
 *.service
 *.timer
-*.sh
+
+# Allow specific shell scripts for HubStorage
+!launch_agent_wrapper.sh
+!setup_portable_launch_agent.sh
+!setup_test_env.sh
 
 # Database
 *.sql

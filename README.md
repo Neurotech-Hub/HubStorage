@@ -106,6 +106,28 @@ python run.py --config config.json --dry-run
 python run.py --config config.json
 ```
 
+## 🧪 **Test Mode (No AWS Credentials Required)**
+
+For testing the LaunchAgent setup without AWS credentials:
+
+```bash
+# Test LaunchAgent installation without AWS credentials
+python run.py --test-mode --manage-daemon install
+
+# Test with sample configuration (no actual S3 sync)
+python run.py --config config.json --test-mode
+
+# Test continuous mode without AWS credentials
+python run.py --config config.json --continuous --test-mode
+```
+
+**Test mode features:**
+- ✅ Skips AWS credential verification
+- ✅ Installs and manages LaunchAgent normally
+- ✅ Creates log files and directory structure
+- ✅ Simulates sync operations without actual S3 access
+- ✅ Perfect for testing automation setup
+
 ## 📖 Usage Examples
 
 ### Basic Operations
@@ -130,10 +152,10 @@ python run.py --config my_config.json --aws-profile production
 # Create sample configuration with user-specific paths
 python run.py --create-config
 
-# Generate LaunchDaemon plist for macOS automation
+# Generate LaunchAgent plist for macOS automation
 python run.py --generate-daemon
 
-# Manage LaunchDaemon (install, uninstall, status, restart)
+# Manage LaunchAgent (install, uninstall, status, restart)
 python run.py --manage-daemon install
 python run.py --manage-daemon status
 python run.py --manage-daemon restart
@@ -169,18 +191,20 @@ For production use, set up system-level scheduling that survives reboots.
 
 ## 🍎 **macOS Automation Setup**
 
-### **Method A: LaunchDaemon (Recommended)**
+### **Method A: LaunchAgent (Recommended for Non-Admin Users)**
+
+LaunchAgents run on behalf of the logged-in user and don't require administrator privileges, making them perfect for non-admin users.
 
 #### **Easy Installation with Python Management**
 
-1. **Install LaunchDaemon (One Command)**
+1. **Install LaunchAgent (One Command)**
    ```bash
    python run.py --manage-daemon install
    ```
    This automatically:
-   - Generates the daemon configuration with your specific paths
-   - Installs it to the correct location
-   - Starts the daemon
+   - Generates the agent configuration with your specific paths
+   - Installs it to the correct location (`~/Library/LaunchAgents/`)
+   - Starts the agent
    - Shows status and log information
 
 2. **Check Status**
@@ -188,14 +212,14 @@ For production use, set up system-level scheduling that survives reboots.
    python run.py --manage-daemon status
    ```
    Shows:
-   - Whether the daemon is running
+   - Whether the agent is running
    - Current interval settings
    - Recent log entries
    - Configuration file location
 
-3. **Manage the Daemon**
+3. **Manage the Agent**
    ```bash
-   # Restart the daemon
+   # Restart the agent
    python run.py --manage-daemon restart
    
    # Uninstall completely
@@ -207,31 +231,31 @@ For production use, set up system-level scheduling that survives reboots.
 
 #### **Manual Installation (Alternative)**
 
-1. **Generate LaunchDaemon Configuration**
+1. **Generate LaunchAgent Configuration**
    ```bash
    python run.py --generate-daemon
    ```
    This creates `com.s3backup.sync.daemon.plist` with your specific paths and username.
 
-2. **Install LaunchDaemon**
+2. **Install LaunchAgent**
    ```bash
-   # Copy to LaunchAgents directory
+   # Copy to LaunchAgents directory (user-specific, no admin required)
    cp com.s3backup.sync.daemon.plist ~/Library/LaunchAgents/
    
-   # Load the daemon
+   # Load the agent
    launchctl load ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
    ```
 
 3. **Verify Installation**
    ```bash
-   # Check if daemon is loaded
+   # Check if agent is loaded
    launchctl list | grep s3backup
    
    # View logs
    tail -f logs/s3backup_daemon.log
    ```
 
-4. **Manage LaunchDaemon**
+4. **Manage LaunchAgent**
    ```bash
    # Start manually
    launchctl start com.s3backup.sync.daemon
@@ -243,6 +267,21 @@ For production use, set up system-level scheduling that survives reboots.
    launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
    rm ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
    ```
+
+**Note**: LaunchAgents only run when the user is logged in. For system-wide automation that runs even when no user is logged in, you would need administrator privileges to use LaunchDaemons.
+
+### **LaunchAgent vs LaunchDaemon**
+
+| Feature | LaunchAgent | LaunchDaemon |
+|---------|-------------|--------------|
+| **Admin Required** | ❌ No | ✅ Yes |
+| **Runs When** | User logged in | Always (system-wide) |
+| **Installation** | `~/Library/LaunchAgents/` | `/Library/LaunchDaemons/` |
+| **User Context** | Current user | Root/system |
+| **Best For** | Personal automation | System-wide services |
+
+**For non-admin users**: Use LaunchAgent (Method A above)  
+**For admin users**: Use LaunchDaemon for system-wide automation
 
 ### **Method B: Cron (Traditional)**
 
@@ -645,4 +684,187 @@ For issues and questions:
 
 ---
 
-**Note**: This script is designed for backup purposes. Always test with dry-run mode first and verify your backups regularly. 
+**Note**: This script is designed for backup purposes. Always test with dry-run mode first and verify your backups regularly.
+
+---
+
+## 🚀 **Minimal Setup for LaunchAgent Testing (No AWS Credentials)**
+
+### **Option A: Quick Setup Script (Recommended)**
+
+```bash
+# Run the automated setup script
+./setup_test_env.sh
+```
+
+This script will:
+- ✅ Check for Python 3 and AWS CLI
+- ✅ Install AWS CLI if needed
+- ✅ Create and activate virtual environment
+- ✅ Install Python dependencies
+- ✅ Provide next steps
+
+### **Option B: Manual Setup**
+
+### **Step 1: Install Prerequisites**
+
+```bash
+# 1. Install Python (if not already installed)
+# macOS usually comes with Python 3, but check:
+python3 --version
+
+# 2. Install AWS CLI (required for the script to work)
+brew install awscli
+# OR if you don't have Homebrew:
+# pip3 install awscli
+
+# 3. Create and activate virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 4. Install Python dependencies
+pip install -r requirements.txt
+```
+
+### **Step 2: Create Test Configuration**
+
+```bash
+# Generate a test configuration
+python run.py --create-config
+```
+
+**Edit the generated `config.json` to use a test bucket:**
+```json
+{
+  "s3_buckets": [
+    "test-bucket-name"
+  ],
+  "local_base_path": "./test_backup",
+  "aws_profile": "default"
+}
+```
+
+### **Step 3: Test LaunchAgent Installation (No AWS Credentials)**
+
+```bash
+# Install the LaunchAgent using test mode
+python run.py --test-mode --manage-daemon install
+```
+
+**Expected output:**
+```
+📦 Installing S3 Backup Daemon...
+🔧 Generating daemon configuration...
+📋 Installing daemon configuration...
+🚀 Starting daemon...
+✅ Daemon installed successfully!
+📊 Status: Running
+📝 Logs: tail -f logs/s3backup_daemon.log
+```
+
+### **Step 4: Verify LaunchAgent is Working**
+
+```bash
+# Check if the agent is running
+python run.py --test-mode --manage-daemon status
+
+# Check if it's loaded in launchctl
+launchctl list | grep s3backup
+
+# View the log file
+tail -f logs/s3backup_daemon.log
+```
+
+### **Step 5: Test the Agent (Optional)**
+
+```bash
+# Test with test mode (simulates sync without AWS credentials)
+python run.py --config config.json --test-mode
+
+# Test the agent manually
+launchctl start com.s3backup.sync.daemon
+```
+
+### **Step 6: Clean Up (When Done Testing)**
+
+```bash
+# Uninstall the LaunchAgent
+python run.py --test-mode --manage-daemon uninstall
+
+# Remove test files
+rm -rf test_backup logs/
+```
+
+## 🎯 **What to Look For**
+
+**✅ Success Indicators:**
+- `python3 run.py --test-mode --manage-daemon status` shows "Daemon is running"
+- `launchctl list | grep s3backup` shows the agent in the list
+- Log file `logs/s3backup_daemon.log` exists and has entries
+- No error messages during installation
+
+**❌ Common Issues:**
+- If you get "AWS CLI not found" → Install AWS CLI
+- If you get permission errors → Make sure you're not using `sudo` (LaunchAgents don't need admin)
+- If the agent doesn't start → Check the log file for errors
+
+## 🎯 **Quick Verification Commands**
+
+```bash
+# All-in-one verification
+echo "=== LaunchAgent Status ==="
+python run.py --test-mode --manage-daemon status
+
+echo "=== Launchctl List ==="  
+launchctl list | grep s3backup
+
+echo "=== Log File ==="
+ls -la logs/s3backup_daemon.log 2>/dev/null || echo "No log file found"
+
+echo "=== Plist File ==="
+ls -la ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist 2>/dev/null || echo "No plist file found"
+```
+
+This minimal setup lets you test the LaunchAgent functionality **without needing AWS credentials**. The test mode simulates sync operations and creates all necessary files and logs for verification.
+
+## 🧪 **Quick Test Script**
+
+For a comprehensive test of your LaunchAgent setup, run:
+
+```bash
+# Make sure your virtual environment is activated
+source .venv/bin/activate
+
+# Run the test script
+python test_launch_agent.py
+```
+
+This script will:
+- ✅ Check if the LaunchAgent is properly installed
+- ✅ Verify the plist file exists
+- ✅ Test management commands
+- ✅ Simulate sync operations
+- ✅ Show recent log entries
+- ✅ Provide clear next steps
+
+## 🚀 **Portable LaunchAgent Setup (Cross-Machine)**
+
+For a truly portable setup that works across different machines:
+
+```bash
+# Set up the portable LaunchAgent
+./setup_portable_launch_agent.sh
+```
+
+This creates:
+- ✅ **Portable plist file** with current machine's paths
+- ✅ **Wrapper script** that finds HubStorage directory automatically
+- ✅ **LaunchAgent** that runs when you log into your Mac
+- ✅ **Cross-machine compatibility** (works on different Macs)
+
+**Features:**
+- 🔄 **Runs on login** - Starts when you log into your Mac
+- ⏰ **Scheduled execution** - Runs every 6 hours
+- 🔍 **Smart directory detection** - Finds HubStorage in common locations
+- 📝 **Comprehensive logging** - All activity logged to `logs/` directory
+- 🧪 **Test mode support** - Safe testing without AWS credentials 

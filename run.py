@@ -286,7 +286,7 @@ class S3BackupSync:
         
         return None
 
-    def check_prerequisites(self) -> bool:
+    def check_prerequisites(self, test_mode: bool = False) -> bool:
         """Check if AWS CLI is installed and configured."""
         try:
             # Find AWS CLI executable
@@ -304,6 +304,15 @@ class S3BackupSync:
                                   capture_output=True, text=True, check=True)
             logging.info(f"AWS CLI version: {result.stdout.strip()}")
             
+            # Store the AWS command path for later use
+            self.aws_cmd = aws_cmd
+            
+            # Skip AWS credential check in test mode
+            if test_mode:
+                logging.info("🧪 TEST MODE: Skipping AWS credential verification")
+                logging.info("📝 LaunchAgent setup will work without valid AWS credentials")
+                return True
+            
             # Check AWS configuration
             profile = self.config.get("aws_profile", "default")
             cmd = [aws_cmd, 'sts', 'get-caller-identity']
@@ -314,15 +323,18 @@ class S3BackupSync:
             identity = json.loads(result.stdout)
             logging.info(f"AWS Identity: {identity.get('Arn', 'Unknown')}")
             
-            # Store the AWS command path for later use
-            self.aws_cmd = aws_cmd
             return True
             
         except subprocess.CalledProcessError as e:
-            error_msg = f"AWS CLI error: {e.stderr}"
-            logging.error(error_msg)
-            self.run_errors.append(error_msg)
-            return False
+            if test_mode:
+                logging.warning(f"🧪 TEST MODE: AWS credentials not configured (expected for testing)")
+                logging.info("📝 LaunchAgent will still be installed and can be tested")
+                return True
+            else:
+                error_msg = f"AWS CLI error: {e.stderr}"
+                logging.error(error_msg)
+                self.run_errors.append(error_msg)
+                return False
         except FileNotFoundError:
             error_msg = "AWS CLI not found. Please install AWS CLI first."
             logging.error(error_msg)
@@ -423,7 +435,7 @@ class S3BackupSync:
         
         return cmd
     
-    def sync_bucket(self, bucket_name: str, dry_run: bool = False) -> bool:
+    def sync_bucket(self, bucket_name: str, dry_run: bool = False, test_mode: bool = False) -> bool:
         """Sync a single S3 bucket to local storage."""
         # Create or get the session directory
         session_path = self.create_sync_session_directory(dry_run)
@@ -434,6 +446,12 @@ class S3BackupSync:
         # Only create local directory if NOT doing a dry run
         if not dry_run:
             os.makedirs(local_path, exist_ok=True)
+        
+        # In test mode, skip actual sync and just log the test
+        if test_mode:
+            logging.info(f"🧪 TEST MODE: Would sync bucket '{bucket_name}' to '{local_path}'")
+            logging.info("📝 This is a test run - no actual S3 sync performed")
+            return True
         
         # Check bucket size and disk space (only if not dry run)
         if not dry_run:
@@ -497,7 +515,7 @@ class S3BackupSync:
             self.run_errors.append(error_msg)
             return False
     
-    def sync_all_buckets(self, dry_run: bool = False) -> bool:
+    def sync_all_buckets(self, dry_run: bool = False, test_mode: bool = False) -> bool:
         """Sync all configured S3 buckets."""
         buckets = self.config.get("s3_buckets", [])
         
@@ -510,7 +528,7 @@ class S3BackupSync:
         success_count = 0
         total_buckets = len(buckets)
         
-        logging.info(f"{'[DRY RUN] ' if dry_run else ''}Starting sync of {total_buckets} bucket(s)")
+        logging.info(f"{'[DRY RUN] ' if dry_run else ''}{'[TEST MODE] ' if test_mode else ''}Starting sync of {total_buckets} bucket(s)")
         
         for bucket in buckets:
             bucket_name = bucket if isinstance(bucket, str) else bucket.get("name")
@@ -523,7 +541,7 @@ class S3BackupSync:
             
             logging.info(f"Processing bucket {success_count + 1}/{total_buckets}: {bucket_name}")
             
-            if self.sync_bucket(bucket_name, dry_run):
+            if self.sync_bucket(bucket_name, dry_run, test_mode):
                 success_count += 1
             else:
                 error_msg = f"Failed to sync bucket: {bucket_name}"
@@ -533,7 +551,7 @@ class S3BackupSync:
         logging.info(f"Sync summary: {success_count}/{total_buckets} buckets synced successfully")
         return success_count == total_buckets
     
-    def run_with_retries(self, dry_run: bool = False) -> bool:
+    def run_with_retries(self, dry_run: bool = False, test_mode: bool = False) -> bool:
         """Run sync with retry logic."""
         # Log run start
         self.log_run_start()
@@ -551,7 +569,7 @@ class S3BackupSync:
                     logging.info(f"Retry attempt {attempt}/{max_retries}")
                     time.sleep(retry_delay)
                 
-                success = self.sync_all_buckets(dry_run)
+                success = self.sync_all_buckets(dry_run, test_mode)
                 
                 if success:
                     logging.info("All buckets synced successfully")
@@ -578,7 +596,7 @@ class S3BackupSync:
         
         return final_success
     
-    def run_continuous(self, dry_run: bool = False):
+    def run_continuous(self, dry_run: bool = False, test_mode: bool = False):
         """Run sync continuously based on automation settings."""
         automation_config = self.config.get("automation", {})
         interval_hours = automation_config.get("interval_hours", 6)
@@ -590,7 +608,7 @@ class S3BackupSync:
             try:
                 logging.info("⏰ Starting scheduled sync...")
                 
-                success = self.run_with_retries(dry_run)
+                success = self.run_with_retries(dry_run, test_mode)
                 
                 if success:
                     logging.info("📅 Scheduled sync session completed successfully")
@@ -684,10 +702,8 @@ class S3BackupSync:
     <string>com.s3backup.sync.daemon</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{python_exe}</string>
-        <string>{os.path.join(current_dir, "run.py")}</string>
-        <string>--config</string>
-        <string>{os.path.join(current_dir, "config.json")}</string>
+        <string>/bin/bash</string>
+        <string>{os.path.join(current_dir, "launch_agent_wrapper.sh")}</string>
     </array>
     <key>StartInterval</key>
     <integer>21600</integer>
@@ -703,7 +719,7 @@ class S3BackupSync:
     <key>RunAtLoad</key>
     <true/>
     <key>WorkingDirectory</key>
-    <string>{current_dir}</string>
+    <string>{home_dir}</string>
     <key>StandardOutPath</key>
     <string>{os.path.join(current_dir, "logs", "s3backup_daemon.log")}</string>
     <key>StandardErrorPath</key>
@@ -715,7 +731,7 @@ class S3BackupSync:
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:{os.path.dirname(python_exe)}</string>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
         <key>HOME</key>
         <string>{home_dir}</string>
     </dict>
@@ -1253,6 +1269,8 @@ Examples:
     parser.add_argument('--setup-automation', action='store_true',
                        help='Generate platform-specific automation setup scripts')
     parser.add_argument('--aws-profile', help='AWS profile to use (overrides config)')
+    parser.add_argument('--test-mode', action='store_true',
+                       help='Run in test mode (skip AWS credential verification for LaunchAgent testing)')
     
     args = parser.parse_args()
     
@@ -1271,6 +1289,10 @@ Examples:
     # Manage daemon
     if args.manage_daemon:
         sync_tool = S3BackupSync()
+        # For daemon management, always use test mode to allow setup without AWS credentials
+        if not sync_tool.check_prerequisites(test_mode=True):
+            logging.error("Prerequisites check failed. Please ensure AWS CLI is installed.")
+            sys.exit(1)
         success = sync_tool.manage_daemon(args.manage_daemon)
         sys.exit(0 if success else 1)
     
@@ -1300,12 +1322,12 @@ Examples:
         
         try:
             sync_tool = S3BackupSync(temp_config_file)
-            if sync_tool.check_prerequisites():
+            if sync_tool.check_prerequisites(test_mode=args.test_mode):
                 # Log run start for single bucket sync
                 sync_tool.log_run_start()
                 run_start_time = time.time()
                 
-                success = sync_tool.sync_bucket(args.bucket, args.dry_run)
+                success = sync_tool.sync_bucket(args.bucket, args.dry_run, args.test_mode)
                 
                 # Log run completion for single bucket sync
                 run_duration = time.time() - run_start_time
@@ -1324,16 +1346,16 @@ Examples:
         sync_tool.config["aws_profile"] = args.aws_profile
     
     # Check prerequisites
-    if not sync_tool.check_prerequisites():
+    if not sync_tool.check_prerequisites(test_mode=args.test_mode):
         logging.error("Prerequisites check failed. Please ensure AWS CLI is installed and configured.")
         sys.exit(1)
     
     # Run sync
     try:
         if args.continuous:
-            sync_tool.run_continuous(args.dry_run)
+            sync_tool.run_continuous(args.dry_run, args.test_mode)
         else:
-            success = sync_tool.run_with_retries(args.dry_run)
+            success = sync_tool.run_with_retries(args.dry_run, args.test_mode)
             sys.exit(0 if success else 1)
             
     except KeyboardInterrupt:
