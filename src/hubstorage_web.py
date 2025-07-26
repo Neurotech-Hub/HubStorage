@@ -272,8 +272,8 @@ def launch_agent_action(action):
                 return jsonify({'success': False, 'message': 'Failed to stop LaunchAgent'})
         
         elif action == 'remove':
-            manager.run_command("launchctl unload ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist")
-            manager.run_command("rm ~/Library/LaunchAgents/data/config/com.s3backup.sync.daemon.plist")
+            manager.run_command("launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist")
+            manager.run_command("rm ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist")
             return jsonify({'success': True, 'message': 'LaunchAgent removed successfully'})
         
         else:

@@ -343,8 +343,10 @@
             
             if (data.success) {
                 showAlert(data.message, 'success');
-                // Update status after a short delay to ensure backend has processed
-                setTimeout(updateStatus, 1000);
+                // Reload the page after a short delay to update the entire status section
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1500);
             } else {
                 showAlert(data.message, 'danger');
             }
