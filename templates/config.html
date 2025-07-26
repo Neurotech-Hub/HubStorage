@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration - HubStorage Hypervisor{% endblock %}
+
+{% block content %}
+
+<!-- Configuration Form -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-cog me-2"></i>Edit Configuration
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="config-form">
+                    <!-- S3 Buckets -->
+                    <div class="mb-4">
+                        <label for="s3_buckets" class="form-label">S3 Buckets</label>
+                        <textarea class="form-control" id="s3_buckets" name="s3_buckets" rows="4" 
+                                  placeholder="Enter S3 bucket names, one per line\nExample:\nmy-important-bucket\nmy-data-bucket">{{ config.s3_buckets|join('\n') }}</textarea>
+                        <div class="form-text">
+                            Enter the names of S3 buckets you want to sync, one per line.
+                        </div>
+                    </div>
+                    <!-- Local Backup Path -->
+                    <div class="mb-4">
+                        <label for="local_base_path" class="form-label">Local Backup Path</label>
+                        <input type="text" class="form-control" id="local_base_path" name="local_base_path" 
+                               value="{{ config.local_base_path }}" placeholder="/Volumes/HUBLINK">
+                        <div class="form-text">
+                            Directory where S3 data will be backed up locally.
+                        </div>
+                    </div>
+                    <!-- AWS Profile -->
+                    <div class="mb-4">
+                        <label for="aws_profile" class="form-label">AWS Profile</label>
+                        <input type="text" class="form-control" id="aws_profile" name="aws_profile" 
+                               value="{{ config.aws_profile }}" placeholder="default">
+                        <div class="form-text">
+                            AWS CLI profile to use for authentication.
+                        </div>
+                    </div>
+                    <!-- Advanced Options -->
+                    <div class="mb-4">
+                        <h6 class="mb-2">Advanced Options</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="delete_files" 
+                                           name="delete_files" {{ 'checked' if config.sync_options.delete else '' }}>
+                                    <label class="form-check-label" for="delete_files">
+                                        Delete local files when removed from S3
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="server_side_encryption" 
+                                           name="server_side_encryption" {{ 'checked' if config.sync_options.sse else '' }}>
+                                    <label class="form-check-label" for="server_side_encryption">
+                                        Enable server-side encryption
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Exclude Patterns -->
+                    <div class="mb-4">
+                        <label for="exclude_patterns" class="form-label">Exclude Patterns</label>
+                        <textarea class="form-control" id="exclude_patterns" name="exclude_patterns" rows="3" 
+                                  placeholder="*.tmp\n*/temp/*\n.DS_Store">{{ config.sync_options.exclude_patterns|join('\n') }}</textarea>
+                        <div class="form-text">
+                            Files and patterns to exclude from sync, one per line.
+                        </div>
+                    </div>
+                    <!-- Automation Settings -->
+                    <div class="mb-4">
+                        <h6 class="mb-2">Automation Settings</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="interval_hours" class="form-label">Sync Interval (hours)</label>
+                                <input type="number" class="form-control" id="interval_hours" name="interval_hours" 
+                                       value="{{ config.automation.interval_hours }}" min="1" max="24">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="max_retries" class="form-label">Max Retries</label>
+                                <input type="number" class="form-control" id="max_retries" name="max_retries" 
+                                       value="{{ config.automation.max_retries }}" min="1" max="10">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Action Buttons -->
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">
+                            Save Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Preview -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-eye me-2"></i>Configuration Preview
+                </h5>
+                <span class="text-muted small">Live preview</span>
+            </div>
+            <div class="card-body">
+                <pre class="bg-light p-3 rounded" id="config-preview">{{ config|tojson(indent=2) }}</pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Browse for directory path
+    function browsePath() {
+        // This would need a file dialog implementation
+        // For now, we'll use a simple prompt
+        const path = prompt("Enter the local backup path:", document.getElementById('local_base_path').value);
+        if (path) {
+            document.getElementById('local_base_path').value = path;
+        }
+    }
+    
+    // Update configuration preview
+    function updatePreview() {
+        const form = document.getElementById('config-form');
+        const formData = new FormData(form);
+        
+        const config = {
+            s3_buckets: formData.get('s3_buckets').split('\n').filter(b => b.trim()),
+            local_base_path: formData.get('local_base_path'),
+            aws_profile: formData.get('aws_profile'),
+            sync_options: {
+                delete: formData.get('delete_files') === 'on',
+                exclude_patterns: formData.get('exclude_patterns').split('\n').filter(p => p.trim()),
+                sse: formData.get('server_side_encryption') === 'on'
+            },
+            automation: {
+                interval_hours: parseInt(formData.get('interval_hours')) || 6,
+                max_retries: parseInt(formData.get('max_retries')) || 3
+            }
+        };
+        
+        document.getElementById('config-preview').textContent = JSON.stringify(config, null, 2);
+    }
+    
+    // Validate configuration on submit
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('config-form');
+        form.addEventListener('submit', function(e) {
+            const buckets = document.getElementById('s3_buckets').value.trim();
+            const path = document.getElementById('local_base_path').value.trim();
+            const profile = document.getElementById('aws_profile').value.trim();
+            let errors = [];
+            if (!buckets) errors.push('S3 buckets are required');
+            if (!path) errors.push('Local backup path is required');
+            if (!profile) errors.push('AWS profile is required');
+            if (errors.length > 0) {
+                e.preventDefault();
+                showAlert('Validation errors: ' + errors.join(', '), 'warning');
+            }
+        });
+        // Update preview when form changes
+        const inputs = form.querySelectorAll('input, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('input', updatePreview);
+            input.addEventListener('change', updatePreview);
+        });
+        // Initial preview
+        updatePreview();
+    });
+</script>
+{% endblock %} 

@@ -14,6 +14,9 @@ A robust Python script for syncing AWS S3 buckets to local storage for redundanc
 - **Flexible Configuration**: JSON-based config with command-line overrides
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 - **Dynamic Configuration**: Auto-generates config files with user-specific paths
+- **Web Interface**: Modern web-based management interface
+- **LaunchAgent Management**: Easy macOS automation setup and management
+- **Test Mode**: Safe testing without AWS credentials
 
 ## 📋 Prerequisites
 
@@ -71,7 +74,34 @@ aws s3 ls
 
 ## 🚀 Quick Start
 
-### 1. Generate Configuration File
+### **Option A: Web Interface (Recommended)**
+
+The easiest way to get started is using the web interface:
+
+```bash
+# 1. Clone or download the project
+git clone <repository-url>
+cd HubStorage
+
+# 2. Set up the environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# 3. Start the web interface
+./start_web.sh
+# Or: python hubstorage_web.py
+```
+
+Then open your browser to `http://localhost:5002` and use the web interface to:
+- Configure your S3 buckets and backup settings
+- Install and manage the LaunchAgent
+- Monitor backup status and logs
+- Test the setup without AWS credentials
+
+### **Option B: Command Line**
+
+#### 1. Generate Configuration File
 
 ```bash
 python run.py --create-config
@@ -79,7 +109,7 @@ python run.py --create-config
 
 This creates `config.json` with sample settings using your user-specific paths.
 
-### 2. Edit Configuration
+#### 2. Edit Configuration
 
 Open `config.json` and update:
 
@@ -94,13 +124,13 @@ Open `config.json` and update:
 }
 ```
 
-### 3. Test with Dry Run
+#### 3. Test with Dry Run
 
 ```bash
 python run.py --config config.json --dry-run
 ```
 
-### 4. Run Actual Sync
+#### 4. Run Actual Sync
 
 ```bash
 python run.py --config config.json
@@ -127,6 +157,43 @@ python run.py --config config.json --continuous --test-mode
 - ✅ Creates log files and directory structure
 - ✅ Simulates sync operations without actual S3 access
 - ✅ Perfect for testing automation setup
+
+## 🖥️ **Web Interface Management**
+
+HubStorage includes a modern web interface for easy management:
+
+### **Starting the Web Interface**
+
+```bash
+# Quick start
+./start_web.sh
+
+# Or start directly
+python hubstorage_web.py
+```
+
+The web interface runs on `http://localhost:5002` (port 5002 to avoid conflicts with macOS AirPlay).
+
+### **Web Interface Features**
+
+- **📊 Dashboard**: Real-time status cards showing backup automation health
+- **⚙️ Configuration**: Rich form with live preview and validation
+- **🎛️ LaunchAgent Management**: One-click install, start, stop, remove
+- **📝 Integrated Logs**: Real-time log viewing with search and filters
+- **🔄 Auto-refresh**: Automatic status updates every 30 seconds
+- **📱 Mobile Friendly**: Works on phones, tablets, and desktops
+
+### **Dashboard Overview**
+
+The dashboard provides the most important information at a glance:
+
+- **Backup Automation Status**: Overall health (Healthy/Issue Detected/Unknown)
+- **Agent Status**: Running/Stopped/Not Installed with helpful tooltips
+- **Last Run**: When the last backup ran and its result (Success/Error)
+- **Next Scheduled Run**: When the next backup is scheduled
+- **Quick Actions**: Install, Run Backup, Stop, Remove buttons
+- **Configuration Summary**: Current settings and environment status
+- **Log Output**: Integrated log viewer with search and filter capabilities
 
 ## 📖 Usage Examples
 
@@ -170,7 +237,16 @@ python run.py --config my_config.json --continuous
 
 ## 🔄 **Automated Scheduling Setup**
 
-### **Option 1: Python Continuous Mode** (Recommended for Testing)
+### **Option 1: Web Interface (Recommended)**
+
+Use the web interface for the easiest setup:
+
+1. Start the web interface: `./start_web.sh`
+2. Open `http://localhost:5002`
+3. Click "Install LaunchAgent" on the dashboard
+4. The LaunchAgent will be installed and start automatically
+
+### **Option 2: Python Continuous Mode** (Recommended for Testing)
 
 The script includes a built-in continuous mode that runs indefinitely:
 
@@ -185,7 +261,7 @@ python run.py --config config.json --continuous
 **Pros:** Easy to set up, built-in logging, retry logic  
 **Cons:** Stops if terminal closes, requires manual restart
 
-### **Option 2: System Scheduler** (Recommended for Production)
+### **Option 3: System Scheduler** (Recommended for Production)
 
 For production use, set up system-level scheduling that survives reboots.
 
@@ -194,6 +270,22 @@ For production use, set up system-level scheduling that survives reboots.
 ### **Method A: LaunchAgent (Recommended for Non-Admin Users)**
 
 LaunchAgents run on behalf of the logged-in user and don't require administrator privileges, making them perfect for non-admin users.
+
+#### **Easy Installation with Web Interface**
+
+1. **Start the web interface**
+   ```bash
+   ./start_web.sh
+   ```
+
+2. **Open the dashboard**
+   Navigate to `http://localhost:5002`
+
+3. **Install LaunchAgent**
+   Click "Install LaunchAgent" on the dashboard
+
+4. **Monitor status**
+   The dashboard shows real-time status and logs
 
 #### **Easy Installation with Python Management**
 
@@ -867,4 +959,86 @@ This creates:
 - ⏰ **Scheduled execution** - Runs every 6 hours
 - 🔍 **Smart directory detection** - Finds HubStorage in common locations
 - 📝 **Comprehensive logging** - All activity logged to `logs/` directory
-- 🧪 **Test mode support** - Safe testing without AWS credentials 
+- 🧪 **Test mode support** - Safe testing without AWS credentials
+
+## 🛠️ Troubleshooting macOS LaunchAgent Permissions
+
+If your LaunchAgent fails to start with an error like:
+
+```
+/bin/bash: .../launch_agent_wrapper.sh: Operation not permitted
+```
+
+This is usually caused by macOS security restrictions (quarantine attribute, directory permissions, or privacy settings).
+
+### **Quick Fix**
+
+Run the following script to remove the quarantine attribute and ensure correct permissions:
+
+```bash
+./fix_macos_permissions.sh
+```
+
+Then try reloading the LaunchAgent from the web interface or with:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+launchctl load ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+```
+
+### **If You Still Have Issues**
+
+**Step 1: Check System Preferences**
+1. Go to **System Preferences > Security & Privacy > Privacy**
+2. Select **Full Disk Access** from the left sidebar
+3. Click the lock icon to make changes
+4. Add **Terminal** (or your terminal app) to the list
+5. Restart your terminal
+
+**Step 2: Remove Quarantine Attributes**
+```bash
+# Remove quarantine from all files in the project
+xattr -dr com.apple.quarantine .
+
+# Or just the wrapper script
+xattr -d com.apple.quarantine launch_agent_wrapper.sh
+```
+
+**Step 3: Fix Permissions**
+```bash
+# Make script executable
+chmod +x launch_agent_wrapper.sh
+
+# Make parent directories accessible
+chmod +x .
+chmod +x ..
+```
+
+**Step 4: Alternative - Use Direct Path**
+If the wrapper script still fails, you can modify the plist to call the Python script directly:
+
+```bash
+# Edit the plist file
+nano ~/Library/LaunchAgents/com.s3backup.sync.daemon.plist
+
+# Change the ProgramArguments to call Python directly:
+# <string>/usr/bin/python3</string>
+# <string>/path/to/your/HubStorage/run.py</string>
+# <string>--config</string>
+# <string>config.json</string>
+# <string>--test-mode</string>
+```
+
+**Step 5: Restart Your Mac**
+Sometimes macOS security settings require a restart to take effect.
+
+### **Testing the Fix**
+After making changes, test the LaunchAgent:
+```bash
+# Check if it's running
+launchctl print gui/$(id -u)/com.s3backup.sync.daemon | grep "state ="
+
+# Should show "state = running" if working
+```
+
+--- 

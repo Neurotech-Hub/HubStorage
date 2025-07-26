@@ -1,7 +1,15 @@
-# These are Python dependencies for the script
+# HubStorage Python Dependencies
 
-# AWS CLI
-awscli
+# Core dependencies
+awscli>=1.32.0
+
+# Web interface (Flask)
+flask>=3.0.0
+werkzeug>=3.0.0
+jinja2>=3.0.0
+
+# GUI interface (Tkinter - built into Python)
+# No external dependencies needed for tkinter
 
 # Built-in modules used (no external dependencies required):
 # - argparse
@@ -14,9 +22,8 @@ awscli
 # - datetime
 # - pathlib
 # - typing
-
-# Note: This script uses only Python standard library modules
-# The main requirement is having AWS CLI installed and configured
+# - threading
+# - tkinter (GUI)
 
 # Optional: If you want to extend the script with email notifications
 # smtplib (built-in)

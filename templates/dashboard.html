@@ -1,0 +1,476 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - HubStorage Hypervisor{% endblock %}
+
+{% block content %}
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Backup Automation Status Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>Backup Automation Status
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center mb-3">
+                        <div class="col-md-8">
+                            {% set healthy = status.launch_agent == 'Running' or status.launch_agent == 'Stopped' %}
+                            {% set error = status.launch_agent == 'Not Installed' or status.last_run_result == 'error' %}
+                            <div class="d-flex align-items-center">
+                                <span class="status-indicator status-{{ 'running' if healthy and not error else 'stopped' if error else 'unknown' }} me-3" style="width: 20px; height: 20px;"></span>
+                                <div>
+                                    <h4 class="mb-1">
+                                        {% if healthy and not error %}
+                                            <span class="text-success">Healthy</span>
+                                        {% elif error %}
+                                            <span class="text-danger">Issue Detected</span>
+                                        {% else %}
+                                            <span class="text-warning">Unknown</span>
+                                        {% endif %}
+                                    </h4>
+                                    <p class="text-muted mb-0">Backup automation is working as expected</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="d-flex align-items-center justify-content-end">
+                                <span class="me-2">{{ status.launch_agent }}</span>
+                                <i class="fas fa-info-circle text-muted" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top"
+                                   title="LaunchAgent Status: 'Stopped' is normal for scheduled tasks. The agent only 'runs' when executing a backup. 'Running' means a backup is currently in progress."></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="border-end pe-3">
+                                <small class="text-muted d-block">Last Run</small>
+                                <strong>{{ status.last_run_time or 'Never' }}</strong>
+                                {% if status.last_run_result == 'success' %}
+                                    <span class="badge bg-success ms-2">Success</span>
+                                {% elif status.last_run_result == 'error' %}
+                                    <span class="badge bg-danger ms-2">Error</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border-end pe-3">
+                                <small class="text-muted d-block">Next Scheduled Run</small>
+                                <strong>{{ status.next_run_time or 'Unknown' }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div>
+                                <small class="text-muted d-block">Configuration</small>
+                                <strong>{{ config.s3_buckets|length }} bucket(s)</strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if status.launch_agent == 'Not Installed' %}
+                        <div class="alert alert-danger mt-3 mb-0">
+                            <strong>Backup agent is not installed.</strong> Click <b>Install LaunchAgent</b> below to enable scheduled backups.
+                        </div>
+                    {% elif status.last_run_result == 'error' %}
+                        <div class="alert alert-warning mt-3 mb-0">
+                            <strong>Last backup run failed.</strong> Check the logs below for details.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-bolt me-2"></i>Quick Actions
+                </h5>
+                <button class="btn btn-outline-secondary btn-sm" onclick="runTest()">
+                    Run System Test
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <button class="btn btn-primary w-100" onclick="launchAgentAction('install')" id="install-btn" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <i class="fas fa-download me-2"></i>Install
+                        </button>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <button class="btn btn-secondary w-100" onclick="launchAgentAction('start')" id="start-btn" disabled style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <i class="fas fa-play me-2"></i>Run Backup
+                        </button>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <button class="btn btn-outline-primary w-100" onclick="launchAgentAction('stop')" id="stop-btn" disabled style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <i class="fas fa-stop me-2"></i>Stop
+                        </button>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <button class="btn btn-outline-primary w-100" onclick="launchAgentAction('remove')" id="remove-btn" disabled style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <i class="fas fa-trash me-2"></i>Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Summary -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-cog me-2"></i>Configuration Summary
+                </h5>
+                <a href="/config" class="btn btn-outline-secondary btn-sm">
+                    Edit Configuration
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="border-end pe-3">
+                            <small class="text-muted d-block">S3 Buckets</small>
+                            <strong>{{ config.s3_buckets|length }} configured</strong>
+                            {% if config.s3_buckets %}
+                                <small class="text-muted d-block mt-1">{{ config.s3_buckets|join(', ') }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div>
+                            <small class="text-muted d-block">Local Backup Path</small>
+                            <strong>{{ config.local_base_path }}</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="border-end pe-3">
+                            <small class="text-muted d-block">AWS Profile</small>
+                            <strong>{{ config.aws_profile }}</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div>
+                            <small class="text-muted d-block">Last Updated</small>
+                            <strong>{{ status.timestamp }}</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="border-end pe-3">
+                            <small class="text-muted d-block">Sync Options</small>
+                            <strong>Delete: {{ 'Yes' if config.sync_options.delete else 'No' }}</strong>
+                            {% if config.sync_options.exclude_patterns %}
+                                <small class="text-muted d-block mt-1">{{ config.sync_options.exclude_patterns|length }} exclude patterns</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div>
+                            <small class="text-muted d-block">Environment</small>
+                            <strong>Virtual Environment: {{ 'Active' if status.venv_exists else 'Missing' }}</strong>
+                            <small class="text-muted d-block mt-1">Log Files: {{ 'Available' if status.log_file_exists else 'Missing' }}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Logs Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-terminal me-2"></i>Log Output
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <!-- Log Controls -->
+                <div class="p-3 border-bottom">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control form-control-sm" id="log-search" placeholder="Search logs...">
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select form-select-sm" id="log-level">
+                                <option value="">All Levels</option>
+                                <option value="DEBUG">DEBUG</option>
+                                <option value="INFO">INFO</option>
+                                <option value="WARNING">WARNING</option>
+                                <option value="ERROR">ERROR</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button class="btn btn-outline-secondary btn-sm me-2" onclick="refreshLogs()">
+                                Refresh
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="downloadLogs()">
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Log Content -->
+                <div class="log-container" id="log-content" style="height: 300px;">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-file-alt fa-3x mb-3"></i>
+                        <p>Loading logs...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Real-time status updates
+    function updateStatus() {
+        $.get('/api/status', function(data) {
+            // Update LaunchAgent status
+            const statusElement = $('#launch-agent-status');
+            const statusClass = data.launch_agent === 'Running' ? 'running' : 
+                              data.launch_agent === 'Stopped' ? 'stopped' : 'unknown';
+            
+            statusElement.html(`
+                <span class="status-indicator status-${statusClass}"></span>
+                ${data.launch_agent}
+            `);
+            
+            // Update button states based on LaunchAgent status
+            updateButtonStates(data.launch_agent);
+            
+            // Update timestamp
+            $('.card-body').find('strong:contains("Last Updated:")').next().text(data.timestamp);
+        });
+    }
+    
+    // Update button states based on LaunchAgent status
+    function updateButtonStates(status) {
+        const installBtn = $('#install-btn');
+        const startBtn = $('#start-btn');
+        const stopBtn = $('#stop-btn');
+        const removeBtn = $('#remove-btn');
+        
+        if (status === 'Running') {
+            // Agent is running - can stop, can't start, can't remove while running
+            installBtn.removeClass('btn-primary').addClass('btn-outline-secondary').prop('disabled', true)
+                .html('<i class="fas fa-download me-2"></i>Already Installed');
+            startBtn.prop('disabled', true);
+            stopBtn.prop('disabled', false);
+            removeBtn.prop('disabled', true);
+        } else if (status === 'Stopped') {
+            // Agent is installed but stopped - can start, can remove, can reinstall
+            installBtn.removeClass('btn-outline-secondary').addClass('btn-primary').prop('disabled', false)
+                .html('<i class="fas fa-redo me-2"></i>Re-install LaunchAgent');
+            startBtn.prop('disabled', false);
+            stopBtn.prop('disabled', true);
+            removeBtn.prop('disabled', false);
+        } else if (status === 'Not Installed') {
+            // Agent is not installed - can install, can't start/stop/remove
+            installBtn.removeClass('btn-outline-secondary').addClass('btn-primary').prop('disabled', false)
+                .html('<i class="fas fa-download me-2"></i>Install LaunchAgent');
+            startBtn.prop('disabled', true);
+            stopBtn.prop('disabled', true);
+            removeBtn.prop('disabled', true);
+        } else {
+            // Unknown status - disable all buttons except install
+            installBtn.removeClass('btn-outline-secondary').addClass('btn-primary').prop('disabled', false)
+                .html('<i class="fas fa-download me-2"></i>Install LaunchAgent');
+            startBtn.prop('disabled', true);
+            stopBtn.prop('disabled', true);
+            removeBtn.prop('disabled', true);
+        }
+    }
+    
+    // LaunchAgent management
+    function launchAgentAction(action) {
+        const button = event.target;
+        const originalText = button.innerHTML;
+        
+        if (action === 'remove') {
+            if (!confirm('Are you sure you want to remove the LaunchAgent?')) {
+                return;
+            }
+        }
+        
+        if (action === 'install') {
+            // Check if this is a reinstall
+            const currentStatus = $('#launch-agent-status').text().trim();
+            if (currentStatus === 'Stopped') {
+                if (!confirm('This will reinstall the LaunchAgent. Continue?')) {
+                    return;
+                }
+            }
+        }
+        
+        showLoading(button);
+        
+        $.post(`/api/launch_agent/${action}`, function(data) {
+            hideLoading(button, originalText);
+            
+            // Clear any existing alerts first
+            $('.alert').remove();
+            
+            if (data.success) {
+                showAlert(data.message, 'success');
+                // Update status after a short delay to ensure backend has processed
+                setTimeout(updateStatus, 1000);
+            } else {
+                showAlert(data.message, 'danger');
+            }
+        }).fail(function() {
+            hideLoading(button, originalText);
+            // Clear any existing alerts first
+            $('.alert').remove();
+            showAlert('Network error occurred', 'danger');
+        });
+    }
+    
+    // Run test
+    function runTest() {
+        const button = event.target;
+        const originalText = button.innerHTML;
+        
+        showLoading(button);
+        
+        $.post('/api/test', function(data) {
+            hideLoading(button, originalText);
+            
+            if (data.success) {
+                showAlert(data.message, 'success');
+            } else {
+                showAlert(data.message, 'danger');
+            }
+        }).fail(function() {
+            hideLoading(button, originalText);
+            showAlert('Network error occurred', 'danger');
+        });
+    }
+    
+    // Load logs
+    function loadLogs() {
+        $.get('/api/logs', function(data) {
+            if (data.success) {
+                window.logContent = data.content;
+                updateLogDisplay();
+            } else {
+                $('#log-content').html(`
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                        <p>Failed to load logs</p>
+                    </div>
+                `);
+            }
+        }).fail(function() {
+            $('#log-content').html(`
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                    <p>Failed to load logs</p>
+                </div>
+            `);
+        });
+    }
+    
+    // Update log display with filters
+    function updateLogDisplay() {
+        const levelFilter = $('#log-level').val();
+        const searchTerm = $('#log-search').val().toLowerCase();
+        
+        let filteredContent = window.logContent || '';
+        
+        // Apply level filter
+        if (levelFilter) {
+            const lines = filteredContent.split('\n');
+            filteredContent = lines.filter(line => 
+                line.toUpperCase().includes(levelFilter)
+            ).join('\n');
+        }
+        
+        // Apply search filter
+        if (searchTerm) {
+            const lines = filteredContent.split('\n');
+            filteredContent = lines.filter(line => 
+                line.toLowerCase().includes(searchTerm)
+            ).join('\n');
+        }
+        
+        $('#log-content').html(`<pre class="mb-0 p-3">${filteredContent}</pre>`);
+        
+        // Scroll to bottom
+        const logContainer = document.querySelector('.log-container');
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+    
+    // Refresh logs
+    function refreshLogs() {
+        loadLogs();
+    }
+    
+    // Download logs
+    function downloadLogs() {
+        if (window.logContent) {
+            const blob = new Blob([window.logContent], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'hubstorage_logs.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } else {
+            showAlert('No log content to download', 'warning');
+        }
+    }
+    
+    // Auto-refresh status every 30 seconds
+    setInterval(updateStatus, 30000);
+    
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Initial status update
+    $(document).ready(function() {
+        updateStatus();
+        loadLogs();
+        
+        // Set up log search and filter handlers
+        $('#log-search, #log-level').on('input change', function() {
+            updateLogDisplay();
+        });
+    });
+</script>
+{% endblock %} 

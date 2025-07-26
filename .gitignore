@@ -217,6 +217,8 @@ __marimo__/
 !launch_agent_wrapper.sh
 !setup_portable_launch_agent.sh
 !setup_test_env.sh
+!start_gui.sh
+!start_web.sh
 
 # Database
 *.sql

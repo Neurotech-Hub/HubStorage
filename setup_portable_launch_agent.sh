@@ -34,15 +34,18 @@ cat > com.s3backup.sync.daemon.plist << EOF
     <string>com.s3backup.sync.daemon</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>$CURRENT_DIR/launch_agent_wrapper.sh</string>
+        <string>$CURRENT_DIR/.venv/bin/python</string>
+        <string>$CURRENT_DIR/run.py</string>
+        <string>--config</string>
+        <string>config.json</string>
+        <string>--test-mode</string>
     </array>
     <key>StartInterval</key>
     <integer>21600</integer>
     <key>RunAtLoad</key>
     <true/>
     <key>WorkingDirectory</key>
-    <string>$HOME_DIR</string>
+    <string>$CURRENT_DIR</string>
     <key>StandardOutPath</key>
     <string>$CURRENT_DIR/logs/s3backup_daemon.log</string>
     <key>StandardErrorPath</key>
