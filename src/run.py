@@ -292,10 +292,15 @@ class S3BackupSync:
             # Find AWS CLI executable
             aws_cmd = self.find_aws_executable()
             if not aws_cmd:
-                error_msg = "AWS CLI not found. Please install AWS CLI first."
-                logging.error(error_msg)
-                self.run_errors.append(error_msg)
-                return False
+                if test_mode:
+                    logging.warning("🧪 TEST MODE: AWS CLI not found (expected for testing)")
+                    logging.info("📝 LaunchAgent setup will work without AWS CLI")
+                    return True
+                else:
+                    error_msg = "AWS CLI not found. Please install AWS CLI first."
+                    logging.error(error_msg)
+                    self.run_errors.append(error_msg)
+                    return False
             
             logging.debug(f"Using AWS CLI at: {aws_cmd}")
             
@@ -336,10 +341,15 @@ class S3BackupSync:
                 self.run_errors.append(error_msg)
                 return False
         except FileNotFoundError:
-            error_msg = "AWS CLI not found. Please install AWS CLI first."
-            logging.error(error_msg)
-            self.run_errors.append(error_msg)
-            return False
+            if test_mode:
+                logging.warning("🧪 TEST MODE: AWS CLI not found (expected for testing)")
+                logging.info("📝 LaunchAgent setup will work without AWS CLI")
+                return True
+            else:
+                error_msg = "AWS CLI not found. Please install AWS CLI first."
+                logging.error(error_msg)
+                self.run_errors.append(error_msg)
+                return False
         except Exception as e:
             error_msg = f"Error checking prerequisites: {e}"
             logging.error(error_msg)
@@ -703,7 +713,7 @@ class S3BackupSync:
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>{os.path.join(current_dir, "launch_agent_wrapper.sh")}</string>
+        <string>{os.path.join(current_dir, "scripts", "launch_agent_wrapper.sh")}</string>
     </array>
     <key>StartInterval</key>
     <integer>21600</integer>
@@ -1290,8 +1300,9 @@ Examples:
     # Manage daemon
     if args.manage_daemon:
         sync_tool = S3BackupSync()
-        # For daemon management, always use test mode to allow setup without AWS credentials
-        if not sync_tool.check_prerequisites(test_mode=True):
+        # For daemon management, use test mode if specified or if AWS CLI is not available
+        test_mode = args.test_mode
+        if not sync_tool.check_prerequisites(test_mode=test_mode):
             logging.error("Prerequisites check failed. Please ensure AWS CLI is installed.")
             sys.exit(1)
         success = sync_tool.manage_daemon(args.manage_daemon)

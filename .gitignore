@@ -197,3 +197,4 @@ data/
 
 # config
 .json
+.sh
