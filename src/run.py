@@ -292,15 +292,10 @@ class S3BackupSync:
             # Find AWS CLI executable
             aws_cmd = self.find_aws_executable()
             if not aws_cmd:
-                if test_mode:
-                    logging.warning("🧪 TEST MODE: AWS CLI not found (expected for testing)")
-                    logging.info("📝 LaunchAgent setup will work without AWS CLI")
-                    return True
-                else:
-                    error_msg = "AWS CLI not found. Please install AWS CLI first."
-                    logging.error(error_msg)
-                    self.run_errors.append(error_msg)
-                    return False
+                error_msg = "AWS CLI not found. Please install AWS CLI first."
+                logging.error(error_msg)
+                self.run_errors.append(error_msg)
+                return False
             
             logging.debug(f"Using AWS CLI at: {aws_cmd}")
             
