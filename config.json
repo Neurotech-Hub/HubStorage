@@ -1,9 +1,9 @@
 {
   "s3_buckets": [
-    "my-important-bucket",
-    "my-data-bucket"
+    "lab1-dummy",
+    "lab2-dummy"
   ],
-  "local_base_path": "./hublink_backup",
+  "local_base_path": "/Volumes/S3-HUBSTORAGE/HubLink",
   "aws_profile": "default",
   "sync_options": {
     "delete": true,

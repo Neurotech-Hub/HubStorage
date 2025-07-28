@@ -194,3 +194,6 @@ Temporary Items
 
 # Generated data
 data/
+
+# config
+.json

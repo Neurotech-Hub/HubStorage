@@ -292,10 +292,15 @@ class S3BackupSync:
             # Find AWS CLI executable
             aws_cmd = self.find_aws_executable()
             if not aws_cmd:
-                error_msg = "AWS CLI not found. Please install AWS CLI first."
-                logging.error(error_msg)
-                self.run_errors.append(error_msg)
-                return False
+                if test_mode:
+                    logging.warning("🧪 TEST MODE: AWS CLI not found (expected for testing)")
+                    logging.info("📝 LaunchAgent setup will work without AWS CLI")
+                    return True
+                else:
+                    error_msg = "AWS CLI not found. Please install AWS CLI first."
+                    logging.error(error_msg)
+                    self.run_errors.append(error_msg)
+                    return False
             
             logging.debug(f"Using AWS CLI at: {aws_cmd}")
             
@@ -797,7 +802,8 @@ class S3BackupSync:
             
             # Copy plist file
             print("📋 Installing daemon configuration...")
-            run_command(f"cp {daemon_name}.plist {launch_agents_dir}/", capture_output=False)
+            source_plist = f"data/config/{daemon_name}.plist"
+            run_command(f"cp {source_plist} {launch_agents_dir}/", capture_output=False)
             
             # Load the daemon
             print("🚀 Starting daemon...")
