@@ -2,6 +2,7 @@
 
 # Core dependencies
 awscli>=1.32.0
+boto3>=1.34.0
 
 # Web interface (Flask)
 flask>=3.0.0

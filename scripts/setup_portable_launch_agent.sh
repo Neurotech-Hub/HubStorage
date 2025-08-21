@@ -20,6 +20,31 @@ if [ ! -f "src/run.py" ] || [ ! -f "scripts/launch_agent_wrapper.sh" ]; then
     exit 1
 fi
 
+# Check if config.json exists
+if [ ! -f "config.json" ]; then
+    echo "❌ Error: config.json not found"
+    echo "   Please create config.json first"
+    exit 1
+fi
+
+# Read interval_hours from config.json
+echo "📖 Reading configuration..."
+INTERVAL_HOURS=$(python3 -c "
+import json
+try:
+    with open('config.json', 'r') as f:
+        config = json.load(f)
+    interval_hours = config.get('automation', {}).get('interval_hours', 6)
+    print(interval_hours)
+except Exception as e:
+    print(6)  # Default fallback
+")
+
+# Convert hours to seconds for StartInterval
+INTERVAL_SECONDS=$((INTERVAL_HOURS * 3600))
+
+echo "⏰ Using interval: $INTERVAL_HOURS hours ($INTERVAL_SECONDS seconds)"
+
 # Create logs directory if it doesn't exist
 mkdir -p logs
 
@@ -38,10 +63,10 @@ cat > data/config/com.s3backup.sync.daemon.plist << EOF
         <string>$CURRENT_DIR/src/run.py</string>
         <string>--config</string>
         <string>config.json</string>
-        <string>--test-mode</string>
+        <string>--continuous</string>
     </array>
     <key>StartInterval</key>
-    <integer>21600</integer>
+    <integer>$INTERVAL_SECONDS</integer>
     <key>RunAtLoad</key>
     <true/>
     <key>WorkingDirectory</key>

@@ -18,10 +18,25 @@
                     <!-- S3 Buckets -->
                     <div class="mb-4">
                         <label for="s3_buckets" class="form-label">S3 Buckets</label>
-                        <textarea class="form-control" id="s3_buckets" name="s3_buckets" rows="4" 
-                                  placeholder="Enter S3 bucket names, one per line\nExample:\nmy-important-bucket\nmy-data-bucket">{{ config.s3_buckets|join('\n') }}</textarea>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <textarea class="form-control" id="s3_buckets" name="s3_buckets" rows="4" 
+                                          placeholder="Enter S3 bucket names, one per line\nExample:\nmy-important-bucket\nmy-data-bucket">{{ config.s3_buckets|join('\n') if config.s3_buckets else '' }}</textarea>
+                            </div>
+                            <div class="col-md-4 d-flex flex-column align-items-stretch">
+                                <button type="button" class="btn btn-outline-primary btn-sm mb-2" onclick="discoverBuckets()">
+                                    <i class="fas fa-search me-1"></i>Discover Buckets
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm mb-2" onclick="loadRealTimeBuckets()">
+                                    <i class="fas fa-sync me-1"></i>Auto-Load All
+                                </button>
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="runAWSDiagnostics()">
+                                    <i class="fas fa-stethoscope me-1"></i>AWS Diagnostics
+                                </button>
+                            </div>
+                        </div>
                         <div class="form-text">
-                            Enter the names of S3 buckets you want to sync, one per line.
+                            <strong>Real-time discovery:</strong> Click "Discover Buckets" to find available buckets and select which ones to add, or "Auto-Load All" to automatically load all available buckets from your AWS account.
                         </div>
                     </div>
                     <!-- Local Backup Path -->
@@ -83,6 +98,9 @@
                                 <label for="interval_hours" class="form-label">Sync Interval (hours)</label>
                                 <input type="number" class="form-control" id="interval_hours" name="interval_hours" 
                                        value="{{ config.automation.interval_hours }}" min="1" max="720">
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>Changing this will automatically reinstall the LaunchAgent with the new schedule.
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label for="max_retries" class="form-label">Max Retries</label>
@@ -130,7 +148,279 @@
         const path = prompt("Enter the local backup path:", document.getElementById('local_base_path').value);
         if (path) {
             document.getElementById('local_base_path').value = path;
+            updatePreview();
         }
+    }
+    
+    // Discover S3 buckets and show selection modal
+    function discoverBuckets() {
+        const button = document.querySelector('button[onclick="discoverBuckets()"]');
+        const originalHtml = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Discovering...';
+        button.disabled = true;
+        
+        fetch('/api/discover_buckets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showBucketSelectionModal(data.buckets);
+                showAlert(`Found ${data.buckets.length} S3 buckets! Select which ones to add.`, 'success');
+            } else {
+                showAlert(`Failed to discover buckets: ${data.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert(`Error discovering buckets: ${error}`, 'error');
+        })
+        .finally(() => {
+            button.innerHTML = originalHtml;
+            button.disabled = false;
+        });
+    }
+    
+    // Auto-load all available buckets
+    function loadRealTimeBuckets() {
+        const button = document.querySelector('button[onclick="loadRealTimeBuckets()"]');
+        const originalHtml = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
+        button.disabled = true;
+        
+        fetch('/api/discover_buckets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const bucketTextarea = document.getElementById('s3_buckets');
+                bucketTextarea.value = data.buckets.join('\n');
+                updatePreview();
+                showAlert(`Auto-loaded ${data.buckets.length} S3 buckets from your AWS account!`, 'success');
+            } else {
+                showAlert(`Failed to load buckets: ${data.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert(`Error loading buckets: ${error}`, 'error');
+        })
+        .finally(() => {
+            button.innerHTML = originalHtml;
+            button.disabled = false;
+        });
+    }
+    
+    // Show bucket selection modal
+    function showBucketSelectionModal(buckets) {
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="bucketSelectionModal" tabindex="-1" aria-labelledby="bucketSelectionModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="bucketSelectionModalLabel">
+                                <i class="fas fa-cloud me-2"></i>Select S3 Buckets
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted">Found ${buckets.length} S3 buckets. Select which ones you want to sync:</p>
+                            <div class="row">
+                                ${buckets.map(bucket => `
+                                    <div class="col-md-6 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="${bucket}" id="bucket_${bucket}">
+                                            <label class="form-check-label" for="bucket_${bucket}">
+                                                <i class="fas fa-bucket me-1"></i>${bucket}
+                                            </label>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" onclick="selectAllBuckets(true)">
+                                <i class="fas fa-check-square me-1"></i>Select All
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="selectAllBuckets(false)">
+                                <i class="fas fa-square me-1"></i>Deselect All
+                            </button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" onclick="addSelectedBuckets()">
+                                <i class="fas fa-plus me-1"></i>Add Selected
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if present
+        const existingModal = document.getElementById('bucketSelectionModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('bucketSelectionModal'));
+        modal.show();
+    }
+    
+    // Select/deselect all buckets in modal
+    function selectAllBuckets(select) {
+        const checkboxes = document.querySelectorAll('#bucketSelectionModal input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = select;
+        });
+    }
+    
+    // Add selected buckets to the configuration
+    function addSelectedBuckets() {
+        const checkboxes = document.querySelectorAll('#bucketSelectionModal input[type="checkbox"]:checked');
+        const selectedBuckets = Array.from(checkboxes).map(cb => cb.value);
+        
+        if (selectedBuckets.length === 0) {
+            showAlert('Please select at least one bucket', 'warning');
+            return;
+        }
+        
+        // Get current buckets
+        const bucketTextarea = document.getElementById('s3_buckets');
+        const currentBuckets = bucketTextarea.value.split('\n').filter(b => b.trim()).map(b => b.trim());
+        
+        // Merge with selected buckets (avoid duplicates)
+        const allBuckets = [...new Set([...currentBuckets, ...selectedBuckets])];
+        
+        // Update textarea
+        bucketTextarea.value = allBuckets.join('\n');
+        updatePreview();
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('bucketSelectionModal'));
+        modal.hide();
+        
+        showAlert(`Added ${selectedBuckets.length} bucket(s) to configuration!`, 'success');
+    }
+    
+    // Run AWS diagnostics
+    function runAWSDiagnostics() {
+        const button = document.querySelector('button[onclick="runAWSDiagnostics()"]');
+        const originalHtml = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Diagnosing...';
+        button.disabled = true;
+        
+        fetch('/api/aws_diagnostics', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAWSDiagnosticsModal(data.diagnostics);
+            } else {
+                showAlert(`Diagnostics failed: ${data.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            showAlert(`Error running diagnostics: ${error}`, 'error');
+        })
+        .finally(() => {
+            button.innerHTML = originalHtml;
+            button.disabled = false;
+        });
+    }
+    
+    // Show AWS diagnostics modal
+    function showAWSDiagnosticsModal(diagnostics) {
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="awsDiagnosticsModal" tabindex="-1" aria-labelledby="awsDiagnosticsModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="awsDiagnosticsModalLabel">
+                                <i class="fas fa-stethoscope me-2"></i>AWS Connectivity Diagnostics
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-user me-1"></i>Configuration</h6>
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>AWS Profile:</strong></td>
+                                            <td><code>${diagnostics.aws_profile}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Credentials File:</strong></td>
+                                            <td><span class="badge ${diagnostics.aws_credentials_file === 'EXISTS' ? 'bg-success' : 'bg-warning'}">${diagnostics.aws_credentials_file}</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Config File:</strong></td>
+                                            <td><span class="badge ${diagnostics.aws_config_file === 'EXISTS' ? 'bg-success' : 'bg-warning'}">${diagnostics.aws_config_file}</span></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-tools me-1"></i>Connectivity</h6>
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>AWS CLI:</strong></td>
+                                            <td><span class="badge ${diagnostics.aws_cli_available ? 'bg-success' : 'bg-danger'}">${diagnostics.aws_cli_available ? 'WORKING' : 'FAILED'}</span></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            ${diagnostics.aws_cli_error ? `
+                                <div class="alert alert-warning">
+                                    <h6><i class="fas fa-exclamation-triangle me-1"></i>AWS CLI Error:</h6>
+                                    <code>${diagnostics.aws_cli_error}</code>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-lightbulb me-1"></i>Troubleshooting Tips:</h6>
+                                <ul>
+                                    <li>Configure AWS credentials: <code>aws configure</code></li>
+                                    <li>Check AWS profile exists: <code>aws configure list-profiles</code></li>
+                                    <li>Test connection manually: <code>aws s3 ls</code></li>
+                                    <li>Verify AWS CLI is installed: <code>aws --version</code></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if present
+        const existingModal = document.getElementById('awsDiagnosticsModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('awsDiagnosticsModal'));
+        modal.show();
     }
     
     // Update configuration preview
@@ -139,12 +429,12 @@
         const formData = new FormData(form);
         
         const config = {
-            s3_buckets: formData.get('s3_buckets').split('\n').filter(b => b.trim()),
-            local_base_path: formData.get('local_base_path'),
-            aws_profile: formData.get('aws_profile'),
+            s3_buckets: formData.get('s3_buckets') ? formData.get('s3_buckets').split('\n').filter(b => b.trim()) : [],
+            local_base_path: formData.get('local_base_path') || '',
+            aws_profile: formData.get('aws_profile') || 'default',
             sync_options: {
                 delete: formData.get('delete_files') === 'on',
-                exclude_patterns: formData.get('exclude_patterns').split('\n').filter(p => p.trim()),
+                exclude_patterns: formData.get('exclude_patterns') ? formData.get('exclude_patterns').split('\n').filter(p => p.trim()) : [],
                 sse: formData.get('server_side_encryption') === 'on'
             },
             automation: {
@@ -156,6 +446,27 @@
         document.getElementById('config-preview').textContent = JSON.stringify(config, null, 2);
     }
     
+    // Show alert message
+    function showAlert(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Insert at the top of the card body
+        const cardBody = document.querySelector('.card-body');
+        cardBody.insertBefore(alertDiv, cardBody.firstChild);
+        
+        // Auto dismiss after 5 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+    
     // Validate configuration on submit
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('config-form');
@@ -164,12 +475,13 @@
             const path = document.getElementById('local_base_path').value.trim();
             const profile = document.getElementById('aws_profile').value.trim();
             let errors = [];
-            if (!buckets) errors.push('S3 buckets are required');
             if (!path) errors.push('Local backup path is required');
             if (!profile) errors.push('AWS profile is required');
             if (errors.length > 0) {
                 e.preventDefault();
                 showAlert('Validation errors: ' + errors.join(', '), 'warning');
+            } else {
+                showAlert('Configuration saved successfully!', 'success');
             }
         });
         // Update preview when form changes

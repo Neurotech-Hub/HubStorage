@@ -525,9 +525,77 @@ class S3BackupSync:
             self.run_errors.append(error_msg)
             return False
     
-    def sync_all_buckets(self, dry_run: bool = False, test_mode: bool = False) -> bool:
+    def get_available_s3_buckets(self) -> List[str]:
+        """Dynamically get list of available S3 buckets from AWS using AWS CLI."""
+        try:
+            aws_cmd = getattr(self, 'aws_cmd', 'aws')
+            cmd = [aws_cmd, 's3api', 'list-buckets', '--query', 'Buckets[].Name', '--output', 'text']
+            
+            profile = self.config.get("aws_profile", "default")
+            if profile != "default":
+                cmd.extend(['--profile', profile])
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            bucket_names = result.stdout.strip().split('\t') if result.stdout.strip() else []
+            
+            # Filter out empty strings
+            bucket_names = [name.strip() for name in bucket_names if name.strip()]
+            
+            logging.info(f"Found {len(bucket_names)} available S3 buckets: {bucket_names}")
+            return bucket_names
+            
+        except Exception as e:
+            logging.warning(f"Could not get available S3 buckets using AWS CLI: {e}")
+            return []
+    
+    def get_available_s3_buckets_boto3(self) -> List[str]:
+        """Dynamically get list of available S3 buckets using boto3 (similar to process_s3_backup)."""
+        try:
+            import boto3  # Import boto3 dynamically (similar to process_s3_backup approach)
+            from botocore.exceptions import ClientError
+            
+            # Try to use the configured AWS profile
+            aws_profile = self.config.get("aws_profile", "default")
+            
+            # Create session with profile
+            if aws_profile and aws_profile != 'default':
+                session = boto3.Session(profile_name=aws_profile)
+                s3_client = session.client('s3')
+            else:
+                s3_client = boto3.client('s3')
+            
+            # Get list of buckets (similar to process_s3_backup function)
+            response = s3_client.list_buckets()
+            bucket_names = [bucket['Name'] for bucket in response.get('Buckets', [])]
+            
+            logging.info(f"Found {len(bucket_names)} available S3 buckets using boto3: {bucket_names}")
+            return bucket_names
+            
+        except Exception as e:
+            logging.warning(f"Could not get available S3 buckets using boto3: {e}")
+            return []
+    
+    def get_available_s3_buckets_combined(self) -> List[str]:
+        """Get available S3 buckets using both boto3 and AWS CLI methods."""
+        # Try boto3 first (similar to process_s3_backup approach)
+        buckets = self.get_available_s3_buckets_boto3()
+        
+        # If boto3 fails, fallback to AWS CLI
+        if not buckets:
+            logging.info("boto3 method failed, falling back to AWS CLI")
+            buckets = self.get_available_s3_buckets()
+        
+        return buckets
+    
+    def sync_all_buckets(self, dry_run: bool = False, test_mode: bool = False, use_dynamic_buckets: bool = False) -> bool:
         """Sync all configured S3 buckets."""
-        buckets = self.config.get("s3_buckets", [])
+        if use_dynamic_buckets:
+            buckets = self.get_available_s3_buckets_combined()
+            if not buckets:
+                logging.warning("No S3 buckets found dynamically, falling back to config")
+                buckets = self.config.get("s3_buckets", [])
+        else:
+            buckets = self.config.get("s3_buckets", [])
         
         if not buckets:
             error_msg = "No S3 buckets configured for sync"
@@ -561,7 +629,7 @@ class S3BackupSync:
         logging.info(f"Sync summary: {success_count}/{total_buckets} buckets synced successfully")
         return success_count == total_buckets
     
-    def run_with_retries(self, dry_run: bool = False, test_mode: bool = False) -> bool:
+    def run_with_retries(self, dry_run: bool = False, test_mode: bool = False, use_dynamic_buckets: bool = False) -> bool:
         """Run sync with retry logic."""
         # Log run start
         self.log_run_start()
@@ -579,7 +647,7 @@ class S3BackupSync:
                     logging.info(f"Retry attempt {attempt}/{max_retries}")
                     time.sleep(retry_delay)
                 
-                success = self.sync_all_buckets(dry_run, test_mode)
+                success = self.sync_all_buckets(dry_run, test_mode, use_dynamic_buckets)
                 
                 if success:
                     logging.info("All buckets synced successfully")
@@ -606,7 +674,7 @@ class S3BackupSync:
         
         return final_success
     
-    def run_continuous(self, dry_run: bool = False, test_mode: bool = False):
+    def run_continuous(self, dry_run: bool = False, test_mode: bool = False, use_dynamic_buckets: bool = False):
         """Run sync continuously based on automation settings."""
         automation_config = self.config.get("automation", {})
         interval_hours = automation_config.get("interval_hours", 6)
@@ -618,7 +686,7 @@ class S3BackupSync:
             try:
                 logging.info("⏰ Starting scheduled sync...")
                 
-                success = self.run_with_retries(dry_run, test_mode)
+                success = self.run_with_retries(dry_run, test_mode, use_dynamic_buckets)
                 
                 if success:
                     logging.info("📅 Scheduled sync session completed successfully")
@@ -697,6 +765,10 @@ class S3BackupSync:
         home_dir = os.path.expanduser("~")
         current_dir = os.getcwd()
         
+        # Get interval from configuration
+        interval_hours = self.config.get("automation", {}).get("interval_hours", 6)
+        interval_seconds = interval_hours * 3600
+        
         # Find Python executable in virtual environment
         python_exe = sys.executable
         if os.path.exists(os.path.join(current_dir, ".venv", "bin", "python")):
@@ -718,7 +790,7 @@ class S3BackupSync:
         <string>{os.path.join(current_dir, "config.json")}</string>
     </array>
     <key>StartInterval</key>
-    <integer>21600</integer>
+    <integer>{interval_seconds}</integer>
     <!-- Use StartCalendarInterval for specific time (e.g., 2 AM daily)
     <key>StartCalendarInterval</key>
     <dict>
@@ -759,6 +831,7 @@ class S3BackupSync:
         print(f"Username: {username}")
         print(f"Python executable: {python_exe}")
         print(f"Working directory: {current_dir}")
+        print(f"Interval: {interval_hours} hours ({interval_seconds} seconds)")
         print("")
         print("To install the daemon:")
         print(f"1. cp {output_file} ~/Library/LaunchAgents/")
@@ -1286,6 +1359,8 @@ Examples:
     parser.add_argument('--aws-profile', help='AWS profile to use (overrides config)')
     parser.add_argument('--test-mode', action='store_true',
                        help='Run in test mode (skip AWS credential verification for LaunchAgent testing)')
+    parser.add_argument('--use-dynamic-buckets', action='store_true',
+                       help='Discover and sync all available S3 buckets instead of using config.json list')
     
     args = parser.parse_args()
     
@@ -1369,9 +1444,9 @@ Examples:
     # Run sync
     try:
         if args.continuous:
-            sync_tool.run_continuous(args.dry_run, args.test_mode)
+            sync_tool.run_continuous(args.dry_run, args.test_mode, args.use_dynamic_buckets)
         else:
-            success = sync_tool.run_with_retries(args.dry_run, args.test_mode)
+            success = sync_tool.run_with_retries(args.dry_run, args.test_mode, args.use_dynamic_buckets)
             sys.exit(0 if success else 1)
             
     except KeyboardInterrupt:
