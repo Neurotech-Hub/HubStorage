@@ -8,7 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Find the HubStorage directory (could be in different locations)
 HUBSTORAGE_DIR=""
 POSSIBLE_PATHS=(
-    "$SCRIPT_DIR"
+    "$(dirname "$SCRIPT_DIR")"
+    "$HOME/Documents/HubStorage"
     "$HOME/Documents/Software/HubStorage"
     "$HOME/Software/HubStorage"
     "$HOME/Projects/HubStorage"
@@ -16,7 +17,7 @@ POSSIBLE_PATHS=(
 )
 
 for path in "${POSSIBLE_PATHS[@]}"; do
-    if [ -f "$path/run.py" ] && [ -f "$path/config.json" ]; then
+    if [ -f "$path/src/run.py" ] && [ -f "$path/config.json" ]; then
         HUBSTORAGE_DIR="$path"
         break
     fi
@@ -43,9 +44,9 @@ fi
 # Activate virtual environment
 source .venv/bin/activate
 
-# Run the sync with test mode (safe for testing)
+# Run the sync in production mode
 echo "Starting S3 backup sync..."
-python src/run.py --config config.json --test-mode
+python src/run.py --config config.json
 
 # Exit with the same code as the python script
 exit $? 

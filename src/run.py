@@ -712,8 +712,10 @@ class S3BackupSync:
     <string>com.s3backup.sync.daemon</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>{os.path.join(current_dir, "scripts", "launch_agent_wrapper.sh")}</string>
+        <string>{python_exe}</string>
+        <string>{os.path.join(current_dir, "src", "run.py")}</string>
+        <string>--config</string>
+        <string>{os.path.join(current_dir, "config.json")}</string>
     </array>
     <key>StartInterval</key>
     <integer>21600</integer>
@@ -729,9 +731,9 @@ class S3BackupSync:
     <key>RunAtLoad</key>
     <true/>
     <key>WorkingDirectory</key>
-    <string>{home_dir}</string>
+    <string>{current_dir}</string>
     <key>StandardOutPath</key>
-    <string>{os.path.join(current_dir, "logs", "s3backup_daemon.log")}</string>
+    <string>{os.path.join(current_dir, "data", "logs", "s3backup_daemon.log")}</string>
     <key>StandardErrorPath</key>
     <string>{os.path.join(current_dir, "logs", "s3backup_daemon.error.log")}</string>
     <key>UserName</key>
@@ -744,6 +746,8 @@ class S3BackupSync:
         <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
         <key>HOME</key>
         <string>{home_dir}</string>
+        <key>PYTHONPATH</key>
+        <string>{current_dir}</string>
     </dict>
 </dict>
 </plist>'''
