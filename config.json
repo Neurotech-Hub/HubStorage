@@ -38,7 +38,7 @@
   },
   "automation": {
     "enabled": false,
-    "interval_hours": 168,
+    "interval_hours": 1,
     "max_retries": 3,
     "retry_delay_minutes": 5
   }
